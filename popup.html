@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FBot - BacBo Listas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/popup.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+  </head>
+  <body>
+    <div id="loginScreen" class="auth-overlay">
+      <form id="loginForm" class="auth-card" autocomplete="on">
+        <img src="logo.png" alt="" class="auth-logo" />
+        <h1 class="auth-title">FBot</h1>
+        <p class="auth-subtitle">Bac Bo Listas</p>
+        <label class="auth-label" for="authUsername">Usuário</label>
+        <input id="authUsername" class="auth-input" type="text" autocomplete="username" required />
+        <label class="auth-label" for="authPassword">Senha</label>
+        <input id="authPassword" class="auth-input" type="password" autocomplete="current-password" required />
+        <p id="authError" class="auth-error" role="alert" hidden></p>
+        <button id="loginBtn" class="auth-submit" type="submit">Entrar</button>
+      </form>
+    </div>
+
+    <!-- Conexão instável — banner top-center, não bloqueia a interface -->
+    <div
+      class="connection-overlay"
+      id="connectionOverlay"
+      style="display: none"
+    >
+      <div class="connection-modal">
+        <div class="connection-icon">
+          <i class="fas fa-wifi"></i>
+        </div>
+        <div class="connection-info">
+          <span class="connection-title">Conexão Instável</span>
+          <span class="connection-latency-box"
+            >Latência: <span id="connectionLatency">—</span></span
+          >
+          <span class="connection-warning"
+            >Atenção, pois isto pode comprometer o funcionamento da
+            automação</span
+          >
+        </div>
+        <div class="connection-spinner"></div>
+      </div>
+    </div>
+
+    <!-- Header -->
+    <header class="ext-header">
+      <div class="header-status-ribbon" id="statusRibbon">
+        <span class="status-dot" id="statusDot"></span>
+        <span class="status-label" id="statusLabel">Inativo</span>
+      </div>
+      <div class="header-body">
+        <div class="header-brand">
+          <div class="header-brand-left">
+            <img src="logo.png" alt="FBot" class="header-logo" />
+            <div class="header-titles">
+              <span class="header-title">FBot</span>
+              <span class="header-subtitle">BacBo Listas</span>
+            </div>
+          </div>
+          <div class="header-actions">
+            <span class="header-user" id="headerUser" hidden></span>
+            <button
+              class="btn-popout btn-icon-sm"
+              id="logoutBtn"
+              type="button"
+              title="Sair"
+              hidden
+            >
+              <i class="fas fa-sign-out-alt"></i>
+            </button>
+            <button
+              class="btn-popout btn-icon-sm"
+              id="btnPopout"
+              title="Abrir em janela flutuante (permanece aberta ao jogar)"
+            >
+              <i class="fas fa-external-link-alt"></i>
+            </button>
+          </div>
+        </div>
+        <div class="header-next" id="headerNextEntry" style="display: none"></div>
+      </div>
+    </header>
+
+    <!-- Barra de automação — sempre visível -->
+    <div class="automation-bar">
+      <div class="auto-bar-history">
+        <div class="auto-bar-history-label">
+          <i class="fas fa-history"></i> Últimas Rodadas
+          <span class="live-history-badge" id="liveHistoryBadge">
+            <span class="live-dot"></span> ao vivo
+          </span>
+        </div>
+        <div class="live-history-balls" id="liveHistoryBalls">
+          <span class="live-history-empty"
+            >Inicie o monitoramento na aba Estratégias</span
+          >
+        </div>
+      </div>
+      <label class="house-select">
+        <span>Casa de aposta</span>
+        <select id="bettingHouse" class="field-input">
+          <option value="1win">1Win</option>
+          <option value="pixnabanca">Pix na Banca</option>
+          <option value="inovabet">InovaBet</option>
+        </select>
+      </label>
+      <label class="house-select">
+        <span>Fichas da mesa</span>
+        <select id="chipProfile" class="field-input">
+          <option value="bacbo_br">Bac Bo Brasileiro — 2,50 · 5 · 25 · 125 · 500</option>
+          <option value="bacbo_en">Bac Bo Inglês — 5 · 10 · 25 · 125 · 500 · 2500</option>
+        </select>
+      </label>
+      <button class="btn-start-auto" id="btnAuto">
+        <i class="fas fa-robot"></i>
+        <span id="autoLabel">Iniciar Automação</span>
+      </button>
+    </div>
+
+    <!-- Tabs -->
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="apostas">
+        <i class="fas fa-dice"></i> Apostas
+      </button>
+      <button class="tab-btn" data-tab="estrategias">
+        <i class="fas fa-brain"></i> Estratégias
+      </button>
+      <button class="tab-btn" data-tab="config">
+        <i class="fas fa-cog"></i> Config
+      </button>
+      <button class="tab-btn" data-tab="historico">
+        <i class="fas fa-history"></i> Histórico
+      </button>
+    </nav>
+
+    <!-- Tab: Apostas -->
+    <div class="tab-content active" id="tab-apostas">
+      <!-- Aviso quando nenhuma lista está carregada -->
+      <div class="bet-no-list" id="betNoList">
+        <div class="empty-state">
+          <i class="fas fa-list-check fa-2x"></i>
+          <p>
+            Configure a lista de entradas na aba
+            <strong>Estratégias</strong> para ver as opções de aposta.
+          </p>
+        </div>
+      </div>
+
+      <!-- Modo Martingale global (Fixo / Dobrar) — válido para cores e empate -->
+      <section class="gamble-card" id="cardGaleDoubleGlobal">
+        <h3 class="card-title">
+          <i class="fas fa-layer-group"></i> Modo Martingale
+        </h3>
+        <div class="gale-mode-toggle" id="galeModeToggle">
+          <button
+            type="button"
+            class="gmt-btn gmt-active"
+            data-mode="fixed"
+            data-val="false"
+          >
+            Fixo
+          </button>
+          <button
+            type="button"
+            class="gmt-btn"
+            data-mode="double"
+            data-val="true"
+          >
+            Dobrar
+          </button>
+          <button type="button" class="gmt-btn" data-mode="custom">
+            Personalizado
+          </button>
+        </div>
+        <div class="gale-count-row" id="galeCountRow" style="display: none">
+          <label class="field-label">Qtd. Gales — Cores (0–10)</label>
+          <input
+            type="number"
+            id="galeCountInput"
+            class="field-input"
+            min="0"
+            max="10"
+            value="0"
+          />
+        </div>
+        <div class="gale-count-row" id="tieGaleCountRow" style="display: none">
+          <label class="field-label">Qtd. Gales — Empate (0–10)</label>
+          <input
+            type="number"
+            id="tieGaleCountInput"
+            class="field-input"
+            min="0"
+            max="10"
+            value="0"
+          />
+        </div>
+      </section>
+
+      <!-- Entradas + Proteção no Empate (Cores) — card unificado -->
+      <section class="gamble-card" id="cardColorBet">
+        <h3 class="card-title">
+          <i class="fas fa-coins"></i> Entradas &amp; Proteção (Cores)
+        </h3>
+
+        <!-- Bloco: valor de entrada principal -->
+        <div class="bet-section">
+          <div class="field-group-inline">
+            <label class="field-label">Valor de Entrada (R$)</label>
+            <div class="input-group">
+              <span class="input-prefix">R$</span>
+              <input
+                type="text"
+                id="betAmount"
+                class="field-input currency-input"
+                inputmode="numeric"
+                value="10"
+                placeholder="10"
+              />
+            </div>
+          </div>
+
+          <div class="gale-preview-box" id="galePreview">
+            <span class="gale-preview-none">Sem gale — uma tentativa.</span>
+          </div>
+          <div class="gale-custom-box" id="galeCustomBox" style="display: none">
+            <div class="gale-custom-title">Valores dos gales de cores</div>
+            <div class="gale-custom-grid" id="galeCustomGrid"></div>
+          </div>
+        </div>
+
+        <!-- Bloco: proteção no empate (opcional) -->
+        <div class="bet-section bet-section-protect">
+          <div class="bet-subhead">
+            <span class="bet-subhead-title">
+              <i class="fas fa-shield-alt"></i> Proteção no Empate
+            </span>
+            <span class="badge-optional">Opcional</span>
+          </div>
+
+          <div class="toggle-row">
+            <label class="toggle-label">
+              Apostar também no empate
+              <small class="toggle-hint"
+                >Cobertura simultânea Empate + Alvo principal</small
+              >
+            </label>
+            <label class="switch">
+              <input type="checkbox" id="tieProtection" />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="tie-value-row" id="tieValueRow" style="display: none">
+            <div class="field-group-inline">
+              <label class="field-label">Valor no Empate (R$)</label>
+              <div class="input-group">
+                <span class="input-prefix">R$</span>
+                <input
+                  type="text"
+                  id="tieAmount"
+                  class="field-input currency-input"
+                  inputmode="numeric"
+                  value="5"
+                  placeholder="R$ 5"
+                />
+              </div>
+            </div>
+
+            <div class="gale-preview-box" id="tieProtectPreview">
+              <span class="gale-preview-none"
+                >Mesmo valor em todos os gales.</span
+              >
+            </div>
+            <div
+              class="gale-custom-box"
+              id="tieProtectCustomBox"
+              style="display: none"
+            >
+              <div class="gale-custom-title">Valores da proteção no empate</div>
+              <div class="gale-custom-grid" id="tieProtectCustomGrid"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Gale / Empate — só para listas de empate -->
+      <section class="card card-bet-tie" id="cardTieBet" style="display: none">
+        <h3 class="card-title">
+          <i class="fas fa-coins"></i> Entradas &amp; Martingale (Empate)
+        </h3>
+
+        <div class="field-group-inline">
+          <label class="field-label">Valor de Entrada (R$)</label>
+          <div class="input-group">
+            <span class="input-prefix">R$</span>
+            <input
+              type="text"
+              id="tieEntryAmount"
+              class="field-input currency-input"
+              inputmode="numeric"
+              value="5"
+              placeholder="5"
+            />
+          </div>
+        </div>
+
+        <div class="gale-preview-box" id="tieGalePreview">
+          <span class="gale-preview-none">Sem gale — uma tentativa.</span>
+        </div>
+        <div class="gale-custom-box" id="tieGaleCustomBox" style="display: none">
+          <div class="gale-custom-title">Valores dos gales de empate</div>
+          <div class="gale-custom-grid" id="tieGaleCustomGrid"></div>
+        </div>
+      </section>
+
+      <!-- Feedback de última aposta -->
+      <div class="last-bet-info" id="lastBetInfo" style="display: none">
+        <div class="last-bet-row">
+          <i class="fas fa-check-circle text-green"></i>
+          <span id="lastBetText">Aposta realizada</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Estratégias -->
+    <div class="tab-content" id="tab-estrategias">
+      <!-- Lista de horários de entrada -->
+      <section class="gamble-card" id="cardSchedule">
+        <h3 class="card-title">
+          <i class="fas fa-clock"></i> Lista de Entradas por Horário
+        </h3>
+
+        <div class="field-group">
+          <div class="strategy-instructions">
+            <span class="field-label"> Cole a lista de sinais abaixo </span>
+            <span class="field-hint"
+              >(HH:MM 🔵🟠 = Azul · HH:MM 🔴🟠 = Vermelho · 🟠HH:MM = só
+              Empate)</span
+            >
+          </div>
+          <textarea
+            id="scheduleInput"
+            class="field-input schedule-textarea"
+            rows="10"
+            placeholder="Cores:&#10;12:18 🔵🟠&#10;12:32 🔴🟠&#10;&#10;Somente empate:&#10;🟠11:31&#10;🟠11:34&#10;🟠11:36"
+            spellcheck="false"
+          ></textarea>
+        </div>
+
+        <div class="schedule-actions">
+          <button class="btn-execute" id="btnSaveSchedule">
+            <i class="fas fa-save"></i> Salvar Lista
+          </button>
+          <button class="btn-secondary" id="btnClearSchedule">
+            <i class="fas fa-trash"></i> Limpar
+          </button>
+        </div>
+
+        <!-- Resumo parseado -->
+        <div
+          class="schedule-preview"
+          id="schedulePreview"
+          style="display: none"
+        >
+          <div class="schedule-preview-header">
+            <i class="fas fa-list-check"></i>
+            <span id="schedulePreviewCount">0 entradas carregadas</span>
+          </div>
+          <div
+            class="schedule-preview-active"
+            id="schedulePreviewActive"
+            style="display: none"
+          ></div>
+          <div class="schedule-preview-next" id="schedulePreviewNext"></div>
+        </div>
+      </section>
+
+      <!-- Log de sinais ao vivo (mantido no tab Estratégias para consulta rápida) -->
+      <section class="gamble-card">
+        <h3 class="card-title">
+          <i class="fas fa-satellite-dish"></i> Sinais Disparados
+          <button class="btn-icon-sm btn-clear-signals" title="Limpar sinais">
+            <i class="fas fa-broom"></i>
+          </button>
+        </h3>
+        <div class="signals-log">
+          <div class="empty-state">
+            <i class="fas fa-satellite-dish fa-2x"></i>
+            <p>Aguardando detecção...</p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Tab: Config -->
+    <div class="tab-content" id="tab-config">
+      <!-- Inputs ocultos para persistência interna (não exibidos na UI) -->
+      <input type="hidden" id="historyUrl" />
+      <input type="hidden" id="selectorPlayer" />
+      <input type="hidden" id="selectorTie" />
+      <input type="hidden" id="selectorBanker" />
+      <input type="hidden" id="selectorAmount" />
+      <input type="hidden" id="selectorConfirm" />
+
+      <section class="gamble-card">
+        <h3 class="card-title">
+          <i class="fas fa-circle-half-stroke"></i> Empate duplo seco
+        </h3>
+        <div class="toggle-row">
+          <label class="toggle-label">
+            Se sair empate na mesa
+            <small class="toggle-hint"
+              >Entra só no empate, sem cor e sem gale, no valor da ficha.</small
+            >
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="tieDuploSeco" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Ficha (R$)</label>
+          <div class="input-group">
+            <span class="input-prefix">R$</span>
+            <input
+              type="text"
+              id="tieDuploSecoChip"
+              class="field-input currency-input"
+              inputmode="numeric"
+              value="5"
+              placeholder="5"
+            />
+          </div>
+          <small class="field-hint" id="tieDuploSecoHint"
+            >Entra no empate, sem gale.</small
+          >
+        </div>
+      </section>
+
+      <section class="gamble-card">
+        <h3 class="card-title"><i class="fas fa-sliders-h"></i> Automação</h3>
+
+        <div class="field-group">
+          <label class="field-label">Intervalo entre apostas (segundos)</label>
+          <input
+            type="number"
+            id="autoInterval"
+            class="field-input"
+            min="3"
+            max="120"
+            value="5"
+          />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Momento da entrada</label>
+          <select id="entryTimingMode" class="field-input">
+            <option value="exact">Entrar no horário da lista</option>
+            <option value="before">Entrar antes do horário</option>
+          </select>
+        </div>
+
+        <div class="field-group" id="entryLeadSecondsRow" style="display: none">
+          <label class="field-label">Segundos antes</label>
+          <input
+            type="number"
+            id="entryLeadSeconds"
+            class="field-input"
+            min="1"
+            max="60"
+            value="1"
+          />
+          <small class="field-help"
+            >Use de 1 a 60 segundos antes do horário da lista.</small
+          >
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Limite de apostas (0 = sem limite)</label>
+          <input
+            type="number"
+            id="betLimit"
+            class="field-input"
+            min="0"
+            value="0"
+          />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label"
+            >Parar ao atingir perda (R$, 0 = sem limite)</label
+          >
+          <div class="input-group">
+            <span class="input-prefix">R$</span>
+            <input
+              type="number"
+              id="stopLoss"
+              class="field-input"
+              min="0"
+              step="0.01"
+              value="0"
+            />
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label"
+            >Parar ao atingir lucro (R$, 0 = sem limite)</label
+          >
+          <div class="input-group">
+            <span class="input-prefix">R$</span>
+            <input
+              type="number"
+              id="stopWin"
+              class="field-input"
+              min="0"
+              step="0.01"
+              value="0"
+            />
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label"
+            >Parar após reds no histórico (inclui Entrada e G1/G2)</label
+          >
+          <input
+            type="number"
+            id="stopRedHistory"
+            class="field-input"
+            min="0"
+            max="99"
+            value="0"
+          />
+          <small class="field-help"
+            >0 desativa. Ex.: 5 para parar quando o histórico tiver 5 reds,
+            contando reds da entrada e dos gales.</small
+          >
+        </div>
+
+        <div class="pattern-guard-card">
+          <div class="pattern-guard-head">
+            <div>
+              <strong><i class="fas fa-shield-halved"></i> Proteção por padrão</strong>
+              <small>Aborta sinais contra a leitura recente e registra como reembolso.</small>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="patternGuardEnabled" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="pattern-guard-body" id="patternGuardBody">
+            <div class="pattern-rule">
+              <input type="checkbox" id="patternStrongSequence" checked />
+              <span class="pattern-rule-content">
+                <label for="patternStrongSequence"><strong>Sequência forte</strong></label>
+                <small>Ao atingir o número escolhido, bloqueia a entrada oposta.</small>
+                <span class="pattern-rule-controls">
+                  <label for="patternStrongSequenceLength">Cores iguais</label>
+                  <input type="number" id="patternStrongSequenceLength" min="3" max="8" value="3" />
+                </span>
+              </span>
+            </div>
+            <div class="pattern-rule">
+              <input type="checkbox" id="skipG1OnSequence" checked />
+              <span class="pattern-rule-content">
+                <label for="skipG1OnSequence"><strong>Não entrar no G1</strong></label>
+                <small>Se a sequência estiver vindo, a entrada sem gale continua e o 1º gale não entra contra essa cor. Empate não quebra a contagem.</small>
+                <span class="pattern-rule-controls">
+                  <label for="skipG1SequenceLength">Cores iguais</label>
+                  <input type="number" id="skipG1SequenceLength" min="2" max="8" value="3" />
+                </span>
+              </span>
+            </div>
+            <div class="pattern-rule">
+              <input type="checkbox" id="patternMajorityThreeTwo" checked />
+              <span class="pattern-rule-content">
+                <label for="patternMajorityThreeTwo"><strong>Tendência dominante</strong></label>
+                <small>Define quantos resultados devem dominar a janela analisada.</small>
+                <span class="pattern-rule-controls two-values">
+                  <label for="patternMajorityCount">Dominante</label>
+                  <input type="number" id="patternMajorityCount" min="2" max="10" value="3" />
+                  <label for="patternMajorityWindow">de</label>
+                  <input type="number" id="patternMajorityWindow" min="3" max="10" value="5" />
+                </span>
+              </span>
+            </div>
+            <div class="pattern-rule">
+              <input type="checkbox" id="patternAlternating" checked />
+              <span class="pattern-rule-content">
+                <label for="patternAlternating"><strong>Alternância</strong></label>
+                <small>Mantém somente o próximo lado esperado no padrão alternado.</small>
+                <span class="pattern-rule-controls">
+                  <label for="patternAlternatingLength">Tamanho</label>
+                  <input type="number" id="patternAlternatingLength" min="4" max="8" value="5" />
+                </span>
+              </span>
+            </div>
+            <div class="pattern-rule">
+              <input type="checkbox" id="patternRecentBreak" checked />
+              <span class="pattern-rule-content">
+                <label for="patternRecentBreak"><strong>Quebra recente</strong></label>
+                <small>Após a sequência quebrar, evita voltar imediatamente contra ela.</small>
+                <span class="pattern-rule-controls two-values">
+                  <label for="patternRecentBreakLength">Sequência</label>
+                  <input type="number" id="patternRecentBreakLength" min="4" max="10" value="4" />
+                  <label for="patternRecentBreakRounds">por</label>
+                  <input type="number" id="patternRecentBreakRounds" min="1" max="3" value="2" />
+                </span>
+              </span>
+            </div>
+
+            <div class="custom-patterns">
+              <div class="custom-patterns-title">
+                <span>
+                  <strong>Padrões personalizados</strong>
+                  <small>Monte o histórico e escolha o lado permitido.</small>
+                </span>
+              </div>
+
+              <div class="pattern-builder">
+                <div class="pattern-builder-sequence" id="patternDraftSequence">
+                  <span class="pattern-builder-empty">Adicione ao menos 2 cores</span>
+                </div>
+                <div class="pattern-builder-actions">
+                  <button type="button" class="pattern-color-btn blue" data-pattern-color="A">
+                    <span></span> Azul
+                  </button>
+                  <button type="button" class="pattern-color-btn red" data-pattern-color="V">
+                    <span></span> Vermelho
+                  </button>
+                  <button type="button" class="pattern-undo-btn" id="btnPatternUndo" title="Remover última cor">
+                    <i class="fas fa-delete-left"></i>
+                  </button>
+                </div>
+                <div class="pattern-builder-save">
+                  <label for="patternExpectedTarget">Permitir entrada em</label>
+                  <select id="patternExpectedTarget" class="field-select">
+                    <option value="A">Azul</option>
+                    <option value="V">Vermelho</option>
+                  </select>
+                  <button type="button" class="btn-pattern-add" id="btnAddPattern">
+                    <i class="fas fa-plus"></i> Adicionar
+                  </button>
+                </div>
+              </div>
+
+              <div class="custom-pattern-list" id="customPatternList">
+                <div class="custom-pattern-empty">Nenhum padrão personalizado.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-box">
+          <i class="fas fa-info-circle"></i>
+          Os valores e quantidade de gales são configurados na aba
+          <strong>Apostas</strong>.
+        </div>
+
+        <button class="btn-secondary" id="btnSaveConfig">
+          <i class="fas fa-save"></i> Salvar Configurações
+        </button>
+      </section>
+    </div>
+
+    <!-- Tab: Histórico -->
+    <div class="tab-content" id="tab-historico">
+      <!-- Log de sinais detectados -->
+      <section class="gamble-card">
+        <h3 class="card-title">
+          <i class="fas fa-satellite-dish"></i> Sinais Detectados
+          <button class="btn-icon-sm btn-clear-signals" title="Limpar sinais">
+            <i class="fas fa-broom"></i>
+          </button>
+        </h3>
+        <div class="signals-log">
+          <div class="empty-state">
+            <i class="fas fa-satellite-dish fa-2x"></i>
+            <p>Aguardando detecção...</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="gamble-card">
+        <h3 class="card-title">
+          <i class="fas fa-chart-bar"></i> Resumo da Sessão
+        </h3>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-value text-green" id="statWins">0</span>
+            <span class="stat-label">Ganhos</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value text-red" id="statLosses">0</span>
+            <span class="stat-label">Perdas</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="statTotal">0</span>
+            <span class="stat-label">Total</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value text-green" id="statBalance">R$ 0</span>
+            <span class="stat-label">Saldo</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="gamble-card">
+        <h3 class="card-title"><i class="fas fa-list"></i> Últimas Apostas</h3>
+        <div class="history-list" id="historyList">
+          <div class="empty-state">
+            <i class="fas fa-dice fa-2x"></i>
+            <p>Nenhuma aposta registrada</p>
+          </div>
+        </div>
+        <button class="btn-danger-outline" id="btnClearHistory">
+          <i class="fas fa-trash"></i> Limpar Histórico
+        </button>
+      </section>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script src="js/patterns.js"></script>
+    <script src="js/strategies.js"></script>
+    <script src="js/popup.js"></script>
+  </body>
+</html>
