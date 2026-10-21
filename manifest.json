@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FBot - BacBo Listas",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "FBot - BacBo Listas. Automação de entradas por lista de horários.",
   "permissions": [
     "storage",

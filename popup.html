@@ -18,17 +18,24 @@
   </head>
   <body>
     <div id="loginScreen" class="auth-overlay">
-      <form id="loginForm" class="auth-card" autocomplete="on">
-        <img src="logo.png" alt="" class="auth-logo" />
-        <h1 class="auth-title">FBot</h1>
-        <p class="auth-subtitle">Bac Bo Listas</p>
-        <label class="auth-label" for="authUsername">Usuário</label>
-        <input id="authUsername" class="auth-input" type="text" autocomplete="username" required />
-        <label class="auth-label" for="authPassword">Senha</label>
-        <input id="authPassword" class="auth-input" type="password" autocomplete="current-password" required />
-        <p id="authError" class="auth-error" role="alert" hidden></p>
-        <button id="loginBtn" class="auth-submit" type="submit">Entrar</button>
-      </form>
+      <div class="auth-modal" role="dialog" aria-labelledby="authTitle">
+        <div class="auth-modal-header">
+          <img class="auth-lockup" src="icons/fbot-lockup.png" alt="" />
+          <h2 id="authTitle">Entrar</h2>
+        </div>
+        <div class="auth-modal-body">
+          <form id="loginForm" class="login-form" autocomplete="on" novalidate>
+            <label class="auth-label" for="authUsername">Usuário</label>
+            <input type="text" id="authUsername" class="auth-input" autocomplete="username" required />
+            <label class="auth-label" for="authPassword">Senha</label>
+            <input type="password" id="authPassword" class="auth-input" autocomplete="current-password" required />
+            <p id="authError" class="auth-error" role="alert" hidden></p>
+            <button id="loginBtn" class="auth-submit-btn btn-execute" type="submit">
+              <i class="fas fa-sign-in-alt"></i> Entrar
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
 
     <!-- Conexão instável — banner top-center, não bloqueia a interface -->

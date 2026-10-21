@@ -210,21 +210,32 @@ async function bootAuth() {
   await enterApp();
 }
 
+function setLoginBusy(busy) {
+  const btn = $("loginBtn");
+  if (!btn) return;
+  btn.disabled = busy;
+  btn.innerHTML = busy
+    ? "Entrando…"
+    : '<i class="fas fa-sign-in-alt"></i> Entrar';
+}
+
 async function onLoginSubmit(event) {
   event.preventDefault();
-  const btn = $("loginBtn");
-  if (btn) btn.disabled = true;
+  const username = $("authUsername")?.value.trim();
+  const password = $("authPassword")?.value || "";
+  if (!username || !password) {
+    showAuthScreen("Preencha usuário e senha.");
+    return;
+  }
+  setLoginBusy(true);
   try {
-    await BacListAuth.login(
-      $("authUsername").value.trim(),
-      $("authPassword").value,
-    );
+    await BacListAuth.login(username, password);
     $("authPassword").value = "";
     await enterApp();
   } catch (err) {
     showAuthScreen(err.message || "Não foi possível entrar.");
   } finally {
-    if (btn) btn.disabled = false;
+    setLoginBusy(false);
   }
 }
 
