@@ -815,6 +815,7 @@ function bindMainControls() {
   $("btnAuto").addEventListener("click", toggleAutoMode);
   $("bettingHouse")?.addEventListener("change", saveConfig);
   $("chipProfile")?.addEventListener("change", saveConfig);
+  $("fullscreenOnLoad")?.addEventListener("change", saveConfig);
 }
 
 /* ========== Auto Mode ========== */
@@ -1864,6 +1865,7 @@ function saveConfig() {
     patternGuard: readPatternGuardConfig(),
     bettingHouse: $("bettingHouse")?.value || "1win",
     chipProfile: $("chipProfile")?.value || "bacbo_br",
+    fullscreenOnLoad: $("fullscreenOnLoad")?.checked !== false,
     tieDuploSeco: $("tieDuploSeco")?.checked || false,
     tieDuploSecoChip: readCurrencyInput("tieDuploSecoChip"),
     skipG1OnSequence: $("skipG1OnSequence")?.checked || false,
@@ -1937,6 +1939,9 @@ function loadConfig() {
     if ($("chipProfile")) {
       $("chipProfile").value =
         c.chipProfile === "bacbo_en" ? "bacbo_en" : "bacbo_br";
+    }
+    if ($("fullscreenOnLoad")) {
+      $("fullscreenOnLoad").checked = c.fullscreenOnLoad !== false;
     }
     if ($("tieDuploSeco")) $("tieDuploSeco").checked = !!c.tieDuploSeco;
     setVal("tieDuploSecoChip", c.tieDuploSecoChip ?? 5);

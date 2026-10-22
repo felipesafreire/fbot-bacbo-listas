@@ -984,6 +984,157 @@ async function _pollAndClickPlayButton(tabId, timeoutMs) {
   return { clicked: false };
 }
 
+/* 1win: assim que o iframe do jogo existe, pede tela inteira nele. */
+const _fullscreenJobs = new Map();
+
+const _REQUEST_IFRAME_FULLSCREEN_EXPR = `(function () {
+  function visible(el) {
+    var s = getComputedStyle(el);
+    if (s.display === "none" || s.visibility === "hidden" || Number(s.opacity) === 0) return false;
+    var r = el.getBoundingClientRect();
+    return r.width >= 180 && r.height >= 180;
+  }
+  function collect(root, out) {
+    if (!root || !root.querySelectorAll) return;
+    var nodes = root.querySelectorAll("iframe");
+    for (var i = 0; i < nodes.length; i++) out.push(nodes[i]);
+    var all = root.querySelectorAll("*");
+    for (var j = 0; j < all.length; j++) {
+      if (all[j].shadowRoot) collect(all[j].shadowRoot, out);
+    }
+  }
+  if (document.fullscreenElement) return Promise.resolve({ ok: true, already: true, how: "iframe" });
+  var found = [];
+  collect(document, found);
+  var visibleOnes = found.filter(visible);
+  var pick = null;
+  var best = 0;
+  for (var n = 0; n < visibleOnes.length; n++) {
+    var src = String(visibleOnes[n].src || visibleOnes[n].getAttribute("src") || "");
+    var box = visibleOnes[n].getBoundingClientRect();
+    var area = box.width * box.height;
+    if (/evo-games\\.com|evolution/i.test(src)) {
+      pick = visibleOnes[n];
+      break;
+    }
+    if (area > best) {
+      best = area;
+      pick = visibleOnes[n];
+    }
+  }
+  if (!pick) return Promise.resolve({ ok: false, reason: "iframe" });
+  var req = pick.requestFullscreen || pick.webkitRequestFullscreen;
+  if (!req) return Promise.resolve({ ok: false, reason: "api" });
+  return Promise.resolve(req.call(pick, { navigationUI: "hide" })).then(function () {
+    return { ok: true, how: "iframe" };
+  }).catch(function (e) {
+    return { ok: false, reason: String((e && e.message) || e) };
+  });
+})()`;
+
+const _REQUEST_DOCUMENT_FULLSCREEN_EXPR = `(function () {
+  if (document.fullscreenElement) return Promise.resolve({ ok: true, already: true, how: "documento" });
+  var el = document.documentElement;
+  var req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!req) return Promise.resolve({ ok: false, reason: "api" });
+  return Promise.resolve(req.call(el, { navigationUI: "hide" })).then(function () {
+    return { ok: true, how: "documento" };
+  }).catch(function (e) {
+    return { ok: false, reason: String((e && e.message) || e) };
+  });
+})()`;
+
+async function _pageHasFullscreen(tabId) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      world: "MAIN",
+      func: () => !!document.fullscreenElement,
+    });
+    return !!results?.some((r) => r.result);
+  } catch (_) {
+    return false;
+  }
+}
+
+async function _evalUserGesture(debuggee, expression) {
+  const out = await _withDebugger(debuggee, async (dbg) => {
+    await chrome.debugger.sendCommand(dbg, "Runtime.enable").catch(() => {});
+    const ev = await chrome.debugger.sendCommand(dbg, "Runtime.evaluate", {
+      expression,
+      userGesture: true,
+      awaitPromise: true,
+      returnByValue: true,
+    });
+    if (ev.exceptionDetails) {
+      return {
+        ok: false,
+        reason: ev.exceptionDetails.text || "evaluate",
+      };
+    }
+    return ev.result?.value || { ok: false, reason: "sem retorno" };
+  });
+  if (out && out.success === false && !out.ok) {
+    return { ok: false, reason: out.error || "debugger" };
+  }
+  return out || { ok: false };
+}
+
+async function _tryRequestFullscreenOnce(tabId) {
+  const top = await _evalUserGesture({ tabId }, _REQUEST_IFRAME_FULLSCREEN_EXPR);
+  if (top?.ok) return top;
+
+  const targets = await _getEvoIframeDebuggerTargets(tabId);
+  for (const t of targets) {
+    const inner = await _evalUserGesture(
+      { targetId: t.id },
+      _REQUEST_DOCUMENT_FULLSCREEN_EXPR,
+    );
+    if (inner?.ok) return inner;
+  }
+  return top || { ok: false, reason: "iframe" };
+}
+
+async function _pollGameFullscreen(tabId, timeoutMs) {
+  const start = Date.now();
+  let lastReason = "";
+  while (Date.now() - start < timeoutMs) {
+    if (await _pageHasFullscreen(tabId)) {
+      console.log("[BacList][TelaInteira] jogo em tela inteira");
+      return { ok: true, already: true };
+    }
+    const r = await _tryRequestFullscreenOnce(tabId);
+    if (r?.ok) {
+      await _cdpDelay(400);
+      if ((await _pageHasFullscreen(tabId)) || r.already) {
+        console.log(
+          "[BacList][TelaInteira] tela inteira ao carregar —",
+          r.how || "ok",
+        );
+        return { ok: true, how: r.how };
+      }
+    } else if (r?.reason && r.reason !== lastReason) {
+      lastReason = r.reason;
+      console.log("[BacList][TelaInteira]", r.reason);
+    }
+    await _cdpDelay(700);
+  }
+  console.warn("[BacList][TelaInteira] não entrou em tela inteira");
+  return { ok: false };
+}
+
+async function _enterGameFullscreen(tabId, timeoutMs = 20000) {
+  if (!tabId) return { ok: false };
+  const existing = _fullscreenJobs.get(tabId);
+  if (existing) return existing;
+
+  const job = _pollGameFullscreen(tabId, timeoutMs).finally(() => {
+    _fullscreenJobs.delete(tabId);
+  });
+  _fullscreenJobs.set(tabId, job);
+  return job;
+}
+
 async function _tryHideOverlays(tabId) {
   if (!tabId) return;
   try {
@@ -1200,6 +1351,15 @@ async function _getBettingHouse() {
   }
 }
 
+async function _fullscreenOnLoadEnabled() {
+  try {
+    const data = await chrome.storage.local.get("bacboConfig");
+    return data?.bacboConfig?.fullscreenOnLoad !== false;
+  } catch (_) {
+    return true;
+  }
+}
+
 let _automationRunning = false;
 
 chrome.storage.local.get("autoModeActive", (data) => {
@@ -1211,6 +1371,17 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status !== "complete") return;
   if (!_houseFromUrl(tab?.url || "")?.clickPlay) return;
   _tryClickPlayButton(tabId).catch(() => {});
+});
+
+chrome.webNavigation.onCompleted.addListener((details) => {
+  if (!_automationRunning) return;
+  if (!EVO_FRAME_MATCH.test(details.url || "")) return;
+  _fullscreenOnLoadEnabled()
+    .then((on) => {
+      if (!on) return;
+      return _enterGameFullscreen(details.tabId);
+    })
+    .catch(() => {});
 });
 const POPOUT_URL = chrome.runtime.getURL("popup.html?popout=1");
 let _popoutWindowId = null;
@@ -1302,6 +1473,7 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
         stopLoss: 0,
         stopWin: 0,
         stopRedHistory: 0,
+        fullscreenOnLoad: true,
       },
       bacboHistory: [],
       bacboStats: {
@@ -1705,6 +1877,13 @@ async function _reopenBacBoGame(preferredTabId = null) {
   }
   await _tryClickSrcdocPopup(tabId);
   await _tryHideOverlays(tabId);
+  if (await _fullscreenOnLoadEnabled()) {
+    try {
+      await _enterGameFullscreen(tabId);
+    } catch (e) {
+      console.warn("[BacList][TelaInteira]", e?.message || e);
+    }
+  }
   await _cdpDelay(700);
   await _tryHideOverlays(tabId);
   console.log("[BacList][Pré-entrada] BacBo atualizado:", tabId, url);
@@ -4174,9 +4353,16 @@ async function _placeBetInGameFrame(
       }
     }
     const house = await _getBettingHouse();
+    let gameJustOpened = false;
     if (_automationRunning && house.clickPlay) {
       const play = await _tryClickPlayButton(tabId, 800);
-      if (play?.clicked) await _cdpDelay(2500);
+      if (play?.clicked) {
+        gameJustOpened = true;
+        await _cdpDelay(2500);
+      }
+    }
+    if (gameJustOpened && (await _fullscreenOnLoadEnabled())) {
+      await _enterGameFullscreen(tabId);
     }
     await _tryClickSrcdocPopup(tabId);
     await _tryHideOverlays(tabId);
