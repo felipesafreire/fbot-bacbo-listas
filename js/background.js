@@ -844,18 +844,35 @@ function _clickPlayButtonInPage(doClick) {
     return r.width >= 8 && r.height >= 8;
   };
 
+  const playLabel = (el) =>
+    String(el.innerText || el.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+
   const findInRoot = (root) => {
     if (!root?.querySelector) return null;
     const byTestId = root.querySelector(
-      '[data-testid="game-play-card-play-button"]',
+      '[data-testid="game-play-card-play-button"], [data-testid="game-play-button"], [data-testid="play-button"]',
     );
     if (byTestId && isVisible(byTestId)) return byTestId;
-    for (const btn of root.querySelectorAll("button")) {
-      const text = String(btn.innerText || btn.textContent || "")
-        .replace(/\s+/g, " ")
-        .trim()
-        .toLowerCase();
-      if (text === "jogar" && isVisible(btn)) return btn;
+    for (const el of root.querySelectorAll("[data-testid]")) {
+      const id = String(el.getAttribute("data-testid") || "").toLowerCase();
+      if (!/play-button|play_button/.test(id) || /replay/.test(id)) continue;
+      if (isVisible(el)) return el;
+    }
+    for (const el of root.querySelectorAll('button, [role="button"]')) {
+      const text = playLabel(el);
+      if (
+        (text === "jogar" ||
+          text === "play" ||
+          text === "jogar agora" ||
+          text === "iniciar") &&
+        text.length <= 24 &&
+        isVisible(el)
+      ) {
+        return el;
+      }
     }
     for (const el of root.querySelectorAll("*")) {
       if (!el.shadowRoot) continue;
@@ -901,6 +918,27 @@ function _clickPlayButtonInPage(doClick) {
 }
 
 const _playClickJobs = new Map();
+
+async function _playButtonStillVisible(tabId) {
+  let frames = [];
+  try {
+    frames = (await chrome.webNavigation.getAllFrames({ tabId })) || [];
+  } catch (_) {
+    return false;
+  }
+  for (const frame of frames) {
+    try {
+      const scans = await chrome.scripting.executeScript({
+        target: { tabId, frameIds: [frame.frameId] },
+        world: "MAIN",
+        func: _clickPlayButtonInPage,
+        args: [false],
+      });
+      if (scans?.[0]?.result?.found) return true;
+    } catch (_) {}
+  }
+  return false;
+}
 
 async function _tryClickPlayButton(tabId, timeoutMs = 15000) {
   if (!tabId) return { clicked: false };
@@ -1095,10 +1133,39 @@ async function _tryRequestFullscreenOnce(tabId) {
   return top || { ok: false, reason: "iframe" };
 }
 
+async function _exitPageFullscreen(tabId) {
+  await _evalUserGesture(
+    { tabId },
+    `(function () {
+      if (!document.fullscreenElement) return Promise.resolve({ ok: true });
+      var exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (!exit) return Promise.resolve({ ok: false });
+      return Promise.resolve(exit.call(document)).then(function () {
+        return { ok: true };
+      }).catch(function () {
+        return { ok: false };
+      });
+    })()`,
+  );
+}
+
 async function _pollGameFullscreen(tabId, timeoutMs) {
   const start = Date.now();
   let lastReason = "";
   while (Date.now() - start < timeoutMs) {
+    if (await _playButtonStillVisible(tabId)) {
+      if (await _pageHasFullscreen(tabId)) {
+        console.log(
+          "[BacList][TelaInteira] capa do Jogar ainda aberta — saindo da tela inteira",
+        );
+        await _exitPageFullscreen(tabId);
+        await _cdpDelay(400);
+      }
+      console.log("[BacList][Jogar] clicando para iniciar antes da tela inteira");
+      await _tryClickPlayButton(tabId, 8000);
+      await _cdpDelay(1200);
+      continue;
+    }
     if (await _pageHasFullscreen(tabId)) {
       console.log("[BacList][TelaInteira] jogo em tela inteira");
       return { ok: true, already: true };
@@ -1106,6 +1173,10 @@ async function _pollGameFullscreen(tabId, timeoutMs) {
     const r = await _tryRequestFullscreenOnce(tabId);
     if (r?.ok) {
       await _cdpDelay(400);
+      if (await _playButtonStillVisible(tabId)) {
+        await _exitPageFullscreen(tabId);
+        continue;
+      }
       if ((await _pageHasFullscreen(tabId)) || r.already) {
         console.log(
           "[BacList][TelaInteira] tela inteira ao carregar —",
@@ -1376,12 +1447,19 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 chrome.webNavigation.onCompleted.addListener((details) => {
   if (!_automationRunning) return;
   if (!EVO_FRAME_MATCH.test(details.url || "")) return;
-  _fullscreenOnLoadEnabled()
-    .then((on) => {
-      if (!on) return;
-      return _enterGameFullscreen(details.tabId);
-    })
-    .catch(() => {});
+  void (async () => {
+    try {
+      if (!(await _fullscreenOnLoadEnabled())) return;
+      const tab = await chrome.tabs.get(details.tabId);
+      if (_houseFromUrl(tab?.url || "")?.clickPlay) {
+        if (await _playButtonStillVisible(details.tabId)) {
+          const play = await _tryClickPlayButton(details.tabId, 12000);
+          if (play?.clicked) await _cdpDelay(2000);
+        }
+      }
+      await _enterGameFullscreen(details.tabId);
+    } catch (_) {}
+  })();
 });
 const POPOUT_URL = chrome.runtime.getURL("popup.html?popout=1");
 let _popoutWindowId = null;
