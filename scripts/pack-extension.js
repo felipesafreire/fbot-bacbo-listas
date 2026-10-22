@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Gera o zip do Bac Bo Listas publicado no painel.
- * Saída: ../bacbo-bot-entradas/releases/
+ * Saída: ../fbot-telegram/releases/
  */
 
 const { execFileSync } = require("child_process");
@@ -10,7 +10,7 @@ const path = require("path");
 
 const extDir = path.join(__dirname, "..");
 const manifestPath = path.join(extDir, "manifest.json");
-const outDir = path.resolve(__dirname, "../../bacbo-bot-entradas/releases");
+const outDir = path.resolve(__dirname, "../../fbot-telegram/releases");
 const zipPath = path.join(outDir, "fbot-listas.zip");
 const metaPath = path.join(outDir, "listas-release.json");
 
@@ -24,23 +24,42 @@ if (!/^\d+\.\d+\.\d+$/.test(version)) {
 fs.mkdirSync(outDir, { recursive: true });
 if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
 
-execFileSync(
-  "zip",
-  [
-    "-r",
-    "-q",
-    "-X",
-    zipPath,
-    ".",
-    "-x",
-    "tests/*",
-    "tests/**",
-    "scripts/*",
-    ".git/*",
-    "*.DS_Store",
-  ],
-  { cwd: extDir, stdio: "inherit" },
-);
+try {
+  execFileSync(
+    "zip",
+    [
+      "-r",
+      "-q",
+      "-X",
+      zipPath,
+      ".",
+      "-x",
+      "tests/*",
+      "tests/**",
+      "scripts/*",
+      ".git/*",
+      "*.DS_Store",
+    ],
+    { cwd: extDir, stdio: "inherit" },
+  );
+} catch (err) {
+  if (err.code !== "ENOENT") throw err;
+  execFileSync(
+    "tar",
+    [
+      "-a",
+      "-c",
+      "-f",
+      zipPath,
+      "--exclude=tests",
+      "--exclude=scripts",
+      "--exclude=.git",
+      "--exclude=*.DS_Store",
+      ".",
+    ],
+    { cwd: extDir, stdio: "inherit" },
+  );
+}
 
 const meta = {
   version,
