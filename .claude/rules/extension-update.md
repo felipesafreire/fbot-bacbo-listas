@@ -16,3 +16,7 @@ Se houve alteração, faça estes passos antes de responder que terminou. Não p
 4. Na resposta, diga a versão nova e que falta `bin/deploy.sh` no projeto do bot para o outro computador receber o zip.
 
 A extensão no outro computador é carregada sem compactação. Não use Chrome Web Store nem `update_url`.
+
+## Visual
+
+`css/fbot-tokens.css` e `js/fbot-icons.js` são cópias de `bacbo-bot-entradas/public/assets/`. Editar lá e copiar. Ícones só pelo sprite (`fbotIcon(nome)` ou `<svg class="ic"><use href="#fbot-i-nome"></use></svg>`), nunca Font Awesome. Regra completa: `bacbo-bot-entradas/.claude/rules/design-system.md`.

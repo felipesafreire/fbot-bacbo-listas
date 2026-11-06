@@ -7,14 +7,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="css/fbot-tokens.css" />
     <link rel="stylesheet" href="css/popup.css" />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
-    />
   </head>
   <body>
     <div id="loginScreen" class="auth-overlay">
@@ -31,7 +28,7 @@
             <input type="password" id="authPassword" class="auth-input" autocomplete="current-password" required />
             <p id="authError" class="auth-error" role="alert" hidden></p>
             <button id="loginBtn" class="auth-submit-btn btn-execute" type="submit">
-              <i class="fas fa-sign-in-alt"></i> Entrar
+              <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-login"></use></svg> Entrar
             </button>
           </form>
         </div>
@@ -46,7 +43,7 @@
     >
       <div class="connection-modal">
         <div class="connection-icon">
-          <i class="fas fa-wifi"></i>
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-wifi"></use></svg>
         </div>
         <div class="connection-info">
           <span class="connection-title">Conexão Instável</span>
@@ -86,14 +83,14 @@
               title="Sair"
               hidden
             >
-              <i class="fas fa-sign-out-alt"></i>
+              <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-logout"></use></svg>
             </button>
             <button
               class="btn-popout btn-icon-sm"
               id="btnPopout"
               title="Abrir em janela flutuante (permanece aberta ao jogar)"
             >
-              <i class="fas fa-external-link-alt"></i>
+              <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-external"></use></svg>
             </button>
           </div>
         </div>
@@ -105,7 +102,7 @@
     <div class="automation-bar">
       <div class="auto-bar-history">
         <div class="auto-bar-history-label">
-          <i class="fas fa-history"></i> Últimas Rodadas
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-history"></use></svg> Últimas Rodadas
           <span class="live-history-badge" id="liveHistoryBadge">
             <span class="live-dot"></span> ao vivo
           </span>
@@ -142,7 +139,7 @@
         </label>
       </div>
       <button class="btn-start-auto" id="btnAuto">
-        <i class="fas fa-robot"></i>
+        <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-bot"></use></svg>
         <span id="autoLabel">Iniciar Automação</span>
       </button>
     </div>
@@ -150,16 +147,16 @@
     <!-- Tabs -->
     <nav class="tabs">
       <button class="tab-btn active" data-tab="apostas">
-        <i class="fas fa-dice"></i> Apostas
+        <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-dice"></use></svg> Apostas
       </button>
       <button class="tab-btn" data-tab="estrategias">
-        <i class="fas fa-brain"></i> Estratégias
+        <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-brain"></use></svg> Estratégias
       </button>
       <button class="tab-btn" data-tab="config">
-        <i class="fas fa-cog"></i> Config
+        <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-settings"></use></svg> Config
       </button>
       <button class="tab-btn" data-tab="historico">
-        <i class="fas fa-history"></i> Histórico
+        <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-history"></use></svg> Histórico
       </button>
     </nav>
 
@@ -168,7 +165,7 @@
       <!-- Aviso quando nenhuma lista está carregada -->
       <div class="bet-no-list" id="betNoList">
         <div class="empty-state">
-          <i class="fas fa-list-check fa-2x"></i>
+          <svg class="ic ic-2x" aria-hidden="true" focusable="false"><use href="#fbot-i-list-check"></use></svg>
           <p>
             Configure a lista de entradas na aba
             <strong>Estratégias</strong> para ver as opções de aposta.
@@ -179,7 +176,7 @@
       <!-- Modo Martingale global (Fixo / Dobrar) — válido para cores e empate -->
       <section class="gamble-card" id="cardGaleDoubleGlobal">
         <h3 class="card-title">
-          <i class="fas fa-layer-group"></i> Modo Martingale
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-layers"></use></svg> Modo Martingale
         </h3>
         <div class="gale-mode-toggle" id="galeModeToggle">
           <button
@@ -229,7 +226,7 @@
       <!-- Entradas + Proteção no Empate (Cores) — card unificado -->
       <section class="gamble-card" id="cardColorBet">
         <h3 class="card-title">
-          <i class="fas fa-coins"></i> Entradas &amp; Proteção (Cores)
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-coins"></use></svg> Entradas &amp; Proteção (Cores)
         </h3>
 
         <!-- Bloco: valor de entrada principal -->
@@ -262,7 +259,7 @@
         <div class="bet-section bet-section-protect">
           <div class="bet-subhead">
             <span class="bet-subhead-title">
-              <i class="fas fa-shield-alt"></i> Proteção no Empate
+              <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-shield"></use></svg> Proteção no Empate
             </span>
             <span class="badge-optional">Opcional</span>
           </div>
@@ -316,7 +313,7 @@
       <!-- Gale / Empate — só para listas de empate -->
       <section class="card card-bet-tie" id="cardTieBet" style="display: none">
         <h3 class="card-title">
-          <i class="fas fa-coins"></i> Entradas &amp; Martingale (Empate)
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-coins"></use></svg> Entradas &amp; Martingale (Empate)
         </h3>
 
         <div class="field-group-inline">
@@ -346,7 +343,7 @@
       <!-- Feedback de última aposta -->
       <div class="last-bet-info" id="lastBetInfo" style="display: none">
         <div class="last-bet-row">
-          <i class="fas fa-check-circle text-green"></i>
+          <svg class="ic text-green" aria-hidden="true" focusable="false"><use href="#fbot-i-circle-check"></use></svg>
           <span id="lastBetText">Aposta realizada</span>
         </div>
       </div>
@@ -357,7 +354,7 @@
       <!-- Lista de horários de entrada -->
       <section class="gamble-card" id="cardSchedule">
         <h3 class="card-title">
-          <i class="fas fa-clock"></i> Lista de Entradas por Horário
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-clock"></use></svg> Lista de Entradas por Horário
         </h3>
 
         <div class="field-group">
@@ -379,10 +376,10 @@
 
         <div class="schedule-actions">
           <button class="btn-execute" id="btnSaveSchedule">
-            <i class="fas fa-save"></i> Salvar Lista
+            <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-save"></use></svg> Salvar Lista
           </button>
           <button class="btn-secondary" id="btnClearSchedule">
-            <i class="fas fa-trash"></i> Limpar
+            <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-trash"></use></svg> Limpar
           </button>
         </div>
 
@@ -393,7 +390,7 @@
           style="display: none"
         >
           <div class="schedule-preview-header">
-            <i class="fas fa-list-check"></i>
+            <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-list-check"></use></svg>
             <span id="schedulePreviewCount">0 entradas carregadas</span>
           </div>
           <div
@@ -408,14 +405,14 @@
       <!-- Log de sinais ao vivo (mantido no tab Estratégias para consulta rápida) -->
       <section class="gamble-card">
         <h3 class="card-title">
-          <i class="fas fa-satellite-dish"></i> Sinais Disparados
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-radio"></use></svg> Sinais Disparados
           <button class="btn-icon-sm btn-clear-signals" title="Limpar sinais">
-            <i class="fas fa-broom"></i>
+            <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-eraser"></use></svg>
           </button>
         </h3>
         <div class="signals-log">
           <div class="empty-state">
-            <i class="fas fa-satellite-dish fa-2x"></i>
+            <svg class="ic ic-2x" aria-hidden="true" focusable="false"><use href="#fbot-i-radio"></use></svg>
             <p>Aguardando detecção...</p>
           </div>
         </div>
@@ -434,7 +431,7 @@
 
       <section class="gamble-card">
         <h3 class="card-title">
-          <i class="fas fa-circle-half-stroke"></i> Empate duplo seco
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-contrast"></use></svg> Empate duplo seco
         </h3>
         <div class="toggle-row">
           <label class="toggle-label">
@@ -468,7 +465,7 @@
       </section>
 
       <section class="gamble-card">
-        <h3 class="card-title"><i class="fas fa-sliders-h"></i> Automação</h3>
+        <h3 class="card-title"><svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-sliders"></use></svg> Automação</h3>
 
         <div class="field-group">
           <label class="field-label">Intervalo entre apostas (segundos)</label>
@@ -571,7 +568,7 @@
         <div class="pattern-guard-card">
           <div class="pattern-guard-head">
             <div>
-              <strong><i class="fas fa-shield-halved"></i> Proteção por padrão</strong>
+              <strong><svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-shield"></use></svg> Proteção por padrão</strong>
               <small>Aborta sinais contra a leitura recente e registra como reembolso.</small>
             </div>
             <label class="switch">
@@ -661,7 +658,7 @@
                     <span></span> Vermelho
                   </button>
                   <button type="button" class="pattern-undo-btn" id="btnPatternUndo" title="Remover última cor">
-                    <i class="fas fa-delete-left"></i>
+                    <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-delete"></use></svg>
                   </button>
                 </div>
                 <div class="pattern-builder-save">
@@ -671,7 +668,7 @@
                     <option value="V">Vermelho</option>
                   </select>
                   <button type="button" class="btn-pattern-add" id="btnAddPattern">
-                    <i class="fas fa-plus"></i> Adicionar
+                    <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-plus"></use></svg> Adicionar
                   </button>
                 </div>
               </div>
@@ -684,13 +681,13 @@
         </div>
 
         <div class="info-box">
-          <i class="fas fa-info-circle"></i>
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-info"></use></svg>
           Os valores e quantidade de gales são configurados na aba
           <strong>Apostas</strong>.
         </div>
 
         <button class="btn-secondary" id="btnSaveConfig">
-          <i class="fas fa-save"></i> Salvar Configurações
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-save"></use></svg> Salvar Configurações
         </button>
       </section>
     </div>
@@ -700,14 +697,14 @@
       <!-- Log de sinais detectados -->
       <section class="gamble-card">
         <h3 class="card-title">
-          <i class="fas fa-satellite-dish"></i> Sinais Detectados
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-radio"></use></svg> Sinais Detectados
           <button class="btn-icon-sm btn-clear-signals" title="Limpar sinais">
-            <i class="fas fa-broom"></i>
+            <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-eraser"></use></svg>
           </button>
         </h3>
         <div class="signals-log">
           <div class="empty-state">
-            <i class="fas fa-satellite-dish fa-2x"></i>
+            <svg class="ic ic-2x" aria-hidden="true" focusable="false"><use href="#fbot-i-radio"></use></svg>
             <p>Aguardando detecção...</p>
           </div>
         </div>
@@ -715,7 +712,7 @@
 
       <section class="gamble-card">
         <h3 class="card-title">
-          <i class="fas fa-chart-bar"></i> Resumo da Sessão
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-chart"></use></svg> Resumo da Sessão
         </h3>
         <div class="stats-grid">
           <div class="stat-item">
@@ -738,19 +735,20 @@
       </section>
 
       <section class="gamble-card">
-        <h3 class="card-title"><i class="fas fa-list"></i> Últimas Apostas</h3>
+        <h3 class="card-title"><svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-list"></use></svg> Últimas Apostas</h3>
         <div class="history-list" id="historyList">
           <div class="empty-state">
-            <i class="fas fa-dice fa-2x"></i>
+            <svg class="ic ic-2x" aria-hidden="true" focusable="false"><use href="#fbot-i-dice"></use></svg>
             <p>Nenhuma aposta registrada</p>
           </div>
         </div>
         <button class="btn-danger-outline" id="btnClearHistory">
-          <i class="fas fa-trash"></i> Limpar Histórico
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-trash"></use></svg> Limpar Histórico
         </button>
       </section>
     </div>
 
+    <script src="js/fbot-icons.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/patterns.js"></script>
     <script src="js/strategies.js"></script>

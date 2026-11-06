@@ -216,7 +216,7 @@ function setLoginBusy(busy) {
   btn.disabled = busy;
   btn.innerHTML = busy
     ? "Entrando…"
-    : '<i class="fas fa-sign-in-alt"></i> Entrar';
+    : `${window.fbotIcon('login')} Entrar`;
 }
 
 async function onLoginSubmit(event) {
@@ -347,7 +347,7 @@ function detectPopout() {
     document.body.classList.add("is-popout");
     const btn = $("btnPopout");
     if (btn) {
-      btn.innerHTML = '<i class="fas fa-compress-alt"></i>';
+      btn.innerHTML = window.fbotIcon('minimize');
       btn.title = "Esta janela já está destacada";
       btn.disabled = true;
       btn.style.opacity = "0.4";
@@ -1612,7 +1612,7 @@ function renderCustomPatterns() {
             permite <strong>${pattern.expected === "A" ? "Azul" : "Vermelho"}</strong>
           </span>
           <button type="button" class="custom-pattern-delete" data-delete-pattern-index="${index}" title="Excluir padrão">
-            <i class="fas fa-trash"></i>
+            ${window.fbotIcon('trash')}
           </button>
         </div>`,
     )
@@ -1770,23 +1770,23 @@ function renderHistory() {
   if (!state.history.length) {
     list.innerHTML = `
       <div class="empty-state">
-        <i class="fas fa-dice fa-2x"></i>
+        ${window.fbotIcon('dice', 'ic-2x')}
         <p>Nenhuma aposta registrada</p>
       </div>`;
     return;
   }
 
   const targetIcons = {
-    player: '<i class="fas fa-user text-blue"></i>',
-    tie: '<i class="fas fa-equals text-yellow"></i>',
-    banker: '<i class="fas fa-university text-red"></i>',
+    player: window.fbotIcon('user', 'text-blue'),
+    tie: window.fbotIcon('equals', 'text-yellow'),
+    banker: window.fbotIcon('landmark', 'text-red'),
   };
   const targetNames = { player: "Jogador", tie: "Empate", banker: "Casa" };
   const resultIcons = {
-    win: '<i class="fas fa-check-circle text-green"></i>',
-    loss: '<i class="fas fa-times-circle text-red"></i>',
-    pending: '<i class="fas fa-clock text-yellow"></i>',
-    refund: '<i class="fas fa-rotate-left"></i>',
+    win: window.fbotIcon('circle-check', 'text-green'),
+    loss: window.fbotIcon('circle-x', 'text-red'),
+    pending: window.fbotIcon('clock', 'text-yellow'),
+    refund: window.fbotIcon('rotate-left'),
   };
   const galeBadge = (step) =>
     step > 0 ? `<span class="hi-gale">G${step}</span>` : "";

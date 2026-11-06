@@ -258,7 +258,7 @@ const Strategies = (() => {
       if (inProgress) {
         activeEl.style.display = "block";
         activeEl.innerHTML =
-          `<i class="fas fa-satellite-dish"></i> Em andamento: ` +
+          `${window.fbotIcon('radio')} Em andamento: ` +
           `<strong>${_escHtml(inProgress.scheduleTime)}</strong> ` +
           `${inProgress.icon} <span class="${COLOR_CLASSES[inProgress.target] || ""}">${_escHtml(inProgress.label)}</span>` +
           ` <span class="schedule-preview-status">— ${_escHtml(_slotStatusText(inProgress))}</span>`;
@@ -273,7 +273,7 @@ const Strategies = (() => {
       if (next) {
         const icon = TARGET_ICONS[next.target] || "⚪";
         const label = TARGET_LABELS[next.target] || next.target;
-        nextEl.innerHTML = `<i class="fas fa-clock"></i> Próxima: <strong>${pad(next.hh)}:${pad(next.mm)}</strong> ${icon} <span class="${COLOR_CLASSES[next.target]}">${label}</span>`;
+        nextEl.innerHTML = `${window.fbotIcon('clock')} Próxima: <strong>${pad(next.hh)}:${pad(next.mm)}</strong> ${icon} <span class="${COLOR_CLASSES[next.target]}">${label}</span>`;
       } else {
         nextEl.textContent = "Sem próxima entrada para hoje";
       }
@@ -292,7 +292,7 @@ const Strategies = (() => {
       el.classList.add("in-progress");
       const icon = TARGET_ICONS[inProgress.target] || "⚪";
       const label = TARGET_LABELS[inProgress.target] || inProgress.target;
-      el.innerHTML = `<i class="fas fa-satellite-dish"></i> Em andamento: <strong>${_escHtml(inProgress.scheduleTime)}</strong> ${icon} ${_escHtml(label)}`;
+      el.innerHTML = `${window.fbotIcon('radio')} Em andamento: <strong>${_escHtml(inProgress.scheduleTime)}</strong> ${icon} ${_escHtml(label)}`;
       return;
     }
 
@@ -302,7 +302,7 @@ const Strategies = (() => {
       el.classList.remove("in-progress");
       const icon = TARGET_ICONS[next.target] || "⚪";
       const label = TARGET_LABELS[next.target] || next.target;
-      el.innerHTML = `<i class="fas fa-clock"></i> Próxima: <strong>${pad(next.hh)}:${pad(next.mm)}</strong> ${icon} ${label}`;
+      el.innerHTML = `${window.fbotIcon('clock')} Próxima: <strong>${pad(next.hh)}:${pad(next.mm)}</strong> ${icon} ${label}`;
     } else {
       el.style.display = "none";
       el.classList.remove("in-progress");
@@ -897,7 +897,7 @@ const Strategies = (() => {
   ══════════════════════════════════════════════════════ */
   const SIGNAL_EMPTY_HTML = `
     <div class="empty-state">
-      <i class="fas fa-satellite-dish fa-2x"></i>
+      ${window.fbotIcon('radio', 'ic-2x')}
       <p>Aguardando detecção...</p>
     </div>`;
 
@@ -952,13 +952,13 @@ const Strategies = (() => {
   }
 
   function _slotIconClass(slot) {
-    if (slot.status === "green") return "fa-circle-check";
-    if (slot.status === "loss") return "fa-circle-xmark";
-    if (slot.status === "refund") return "fa-rotate-left";
-    if (slot.status === "gale") return "fa-rotate";
-    if (slot.status === "waiting") return "fa-clock";
-    if (slot.status === "scheduled") return "fa-hourglass-half";
-    return "fa-bolt";
+    if (slot.status === "green") return "circle-check";
+    if (slot.status === "loss") return "circle-x";
+    if (slot.status === "refund") return "rotate-left";
+    if (slot.status === "gale") return "rotate";
+    if (slot.status === "waiting") return "clock";
+    if (slot.status === "scheduled") return "hourglass";
+    return "bolt";
   }
 
   function _slotCssClass(slot) {
@@ -979,7 +979,7 @@ const Strategies = (() => {
     return `
       <div class="signal-item ${css}" data-schedule-key="${_escHtml(slot.scheduleKey)}">
         <div class="si-header">
-          <span class="si-icon"><i class="fas ${icon}"></i></span>
+          <span class="si-icon">${window.fbotIcon(icon)}</span>
           <span class="si-title">
             <strong>${_escHtml(slot.scheduleTime)}</strong>
             — ${slot.icon}
