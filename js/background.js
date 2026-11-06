@@ -208,12 +208,6 @@ async function _scanHelpButtonFrames(tabId) {
   const allFrames = await chrome.webNavigation.getAllFrames({ tabId });
   const scanList = gameFrames.length ? gameFrames : allFrames || [];
 
-  console.log(
-    "[BacList][Help] Escaneando",
-    scanList.length,
-    "frame(s) evo, tabId=",
-    tabId,
-  );
 
   for (const f of scanList) {
     try {
@@ -229,21 +223,7 @@ async function _scanHelpButtonFrames(tabId) {
         probe,
       };
       results.push(entry);
-      console.log(
-        "[BacList][Help] frame",
-        f.frameId,
-        "|",
-        entry.url,
-        "|",
-        JSON.stringify(probe),
-      );
     } catch (e) {
-      console.warn(
-        "[BacList][Help] Falha ao sondar frame",
-        f.frameId,
-        ":",
-        e?.message || e,
-      );
       results.push({
         frameId: f.frameId,
         url: (f.url || "").slice(0, 80),
@@ -271,14 +251,6 @@ async function _scanHelpButtonFrames(tabId) {
             probe,
           };
           results.push(entry);
-          console.log(
-            "[BacList][Help] frame extra",
-            f.frameId,
-            "|",
-            entry.url,
-            "|",
-            JSON.stringify(probe),
-          );
         }
       } catch (_) {}
     }
@@ -298,14 +270,6 @@ async function _verifyHelpClickEffect(tabId, frameId) {
     });
     const probe = inj?.[0]?.result;
     const ok = !probe?.hasActivated;
-    console.log(
-      "[BacList][Help] Pós-clique:",
-      ok ? "✓ desativado" : "✗ ainda Activated",
-      "| state=",
-      probe?.state,
-      "| rect=",
-      JSON.stringify(probe?.rect),
-    );
     return {
       ok,
       state: probe?.state,
@@ -313,10 +277,6 @@ async function _verifyHelpClickEffect(tabId, frameId) {
       probe,
     };
   } catch (e) {
-    console.warn(
-      "[BacList][Help] Verificação pós-clique falhou:",
-      e?.message || e,
-    );
     return { ok: false, error: e?.message };
   }
 }
@@ -324,25 +284,15 @@ async function _verifyHelpClickEffect(tabId, frameId) {
 /* Clica no iframe evo correto (frameId do webNavigation) com CDP local */
 async function _clickHelpButtonOnFrame(tabId, frameId, probe) {
   const iframeTarget = await _getEvoIframeDebuggerTarget(tabId, frameId);
-  console.log(
-    "[BacList][Help] CDP target frame",
-    frameId,
-    "→",
-    iframeTarget?.id ? iframeTarget.id.slice(0, 12) + "…" : "nenhum",
-    "|",
-    (iframeTarget?.url || "").slice(0, 60),
-  );
 
   /* T1: DOM.click no iframe CDP mapeado ao frameId correto */
   if (iframeTarget?.id) {
-    console.log("[BacList][Help] T1: Runtime DOM.click no iframe target");
     const r1 = await _withDebugger(
       { targetId: iframeTarget.id },
       async (dbg) => {
         return _cdpDomClickViaRuntimeEvaluate(dbg, HELP_BTN_ACTIVATED_SEL, 0);
       },
     );
-    console.log("[BacList][Help] T1 resultado:", JSON.stringify(r1));
     if (r1?.success) {
       const v = await _verifyHelpClickEffect(tabId, frameId);
       if (v.ok)
@@ -361,12 +311,6 @@ async function _clickHelpButtonOnFrame(tabId, frameId, probe) {
   if (iframeTarget?.id && rect?.w >= 1 && rect?.h >= 1) {
     const lx = rect.x + rect.w / 2;
     const ly = rect.y + rect.h / 2;
-    console.log(
-      "[BacList][Help] T2: CDP mouse local iframe — lx=",
-      Math.round(lx),
-      "ly=",
-      Math.round(ly),
-    );
     const r2 = await _withDebugger(
       { targetId: iframeTarget.id },
       async (dbg) => {
@@ -379,7 +323,6 @@ async function _clickHelpButtonOnFrame(tabId, frameId, probe) {
         };
       },
     );
-    console.log("[BacList][Help] T2 resultado:", JSON.stringify(r2));
     if (r2?.success) {
       const v = await _verifyHelpClickEffect(tabId, frameId);
       if (v.ok)
@@ -395,11 +338,6 @@ async function _clickHelpButtonOnFrame(tabId, frameId, probe) {
 
   /* T3: percorre TODOS os targets CDP evo até achar o que contém o botão */
   const targets = await _getEvoIframeDebuggerTargets(tabId);
-  console.log(
-    "[BacList][Help] T3: testando",
-    targets.length,
-    "target(s) CDP evo",
-  );
   for (let i = 0; i < targets.length; i++) {
     const t = targets[i];
     const r3 = await _withDebugger({ targetId: t.id }, async (dbg) => {
@@ -413,14 +351,6 @@ async function _clickHelpButtonOnFrame(tabId, frameId, probe) {
         return { success: false, error: "botão não neste target" };
       return _cdpDomClickViaRuntimeEvaluate(dbg, HELP_BTN_ACTIVATED_SEL, 0);
     });
-    console.log(
-      "[BacList][Help] T3 target[",
-      i,
-      "]",
-      (t.url || "").slice(0, 50),
-      "→",
-      JSON.stringify(r3),
-    );
     if (r3?.success) {
       const v = await _verifyHelpClickEffect(tabId, frameId);
       if (v.ok)
@@ -436,7 +366,6 @@ async function _clickHelpButtonOnFrame(tabId, frameId, probe) {
   }
 
   /* T4: coords viewport via frameElement walk + CDP trusted na aba */
-  console.log("[BacList][Help] T4: frameElement walk → CDP aba");
   try {
     const coordInj = await chrome.scripting.executeScript({
       target: { tabId, frameIds: [frameId] },
@@ -444,10 +373,8 @@ async function _clickHelpButtonOnFrame(tabId, frameId, probe) {
       func: _getHelpButtonTabViewportCoords,
     });
     const coords = coordInj?.[0]?.result;
-    console.log("[BacList][Help] T4 coords:", JSON.stringify(coords));
     if (coords?.success) {
       const r4 = await _cdpClickAtViewport(tabId, coords.x, coords.y);
-      console.log("[BacList][Help] T4 CDP aba:", JSON.stringify(r4));
       if (r4?.success) {
         const v = await _verifyHelpClickEffect(tabId, frameId);
         if (v.ok)
@@ -461,11 +388,6 @@ async function _clickHelpButtonOnFrame(tabId, frameId, probe) {
           };
       }
     } else if (coords?.partialX != null) {
-      console.log(
-        "[BacList][Help] T4 walk parcial — tentando CDP em",
-        coords.partialX,
-        coords.partialY,
-      );
       const r4p = await _cdpClickAtViewport(
         tabId,
         coords.partialX,
@@ -484,21 +406,17 @@ async function _clickHelpButtonOnFrame(tabId, frameId, probe) {
       }
     }
   } catch (e) {
-    console.warn("[BacList][Help] T4 falhou:", e?.message || e);
   }
 
   /* T5: coords via cadeia webNavigation + CDP aba */
-  console.log("[BacList][Help] T5: webNavigation chain → CDP aba");
   const navCoords = await _resolveViewportCoordsForNavFrame(
     tabId,
     frameId,
     HELP_BTN_ACTIVATED_SEL,
     0,
   );
-  console.log("[BacList][Help] T5 nav coords:", JSON.stringify(navCoords));
   if (navCoords) {
     const r5 = await _cdpClickAtViewport(tabId, navCoords.x, navCoords.y);
-    console.log("[BacList][Help] T5 CDP aba:", JSON.stringify(r5));
     if (r5?.success) {
       const v = await _verifyHelpClickEffect(tabId, frameId);
       if (v.ok)
@@ -516,12 +434,6 @@ async function _clickHelpButtonOnFrame(tabId, frameId, probe) {
   if (iframeTarget?.id && rect?.w >= 1 && rect?.h >= 1) {
     const lx = rect.x + rect.w / 2;
     const ly = rect.y + rect.h / 2;
-    console.log(
-      "[BacList][Help] T6: CDP iframe local lx=",
-      Math.round(lx),
-      "ly=",
-      Math.round(ly),
-    );
     const r6 = await _withDebugger(
       { targetId: iframeTarget.id },
       async (dbg) => {
@@ -600,12 +512,6 @@ async function _tryClickSrcdocPopup(tabId) {
       });
       const res = inj?.[0]?.result;
       if (res?.clicked) {
-        console.log(
-          "[BacList][Popup] ✓ Popup srcdoc fechado — frame",
-          f.frameId,
-          "| href=",
-          res.href,
-        );
         return;
       }
     } catch (_) {}
@@ -996,7 +902,6 @@ async function _pollAndClickPlayButton(tabId, timeoutMs) {
         if (frame.frameId === 0) {
           const cdp = await _clickPlayWithDebugger(tabId, hit.x, hit.y);
           if (cdp?.success) {
-            console.log("[BacList][Jogar] botão Jogar clicado na tela — cdp");
             return { clicked: true, method: "cdp" };
           }
         }
@@ -1007,10 +912,6 @@ async function _pollAndClickPlayButton(tabId, timeoutMs) {
           args: [true],
         });
         if (inj?.[0]?.result?.clicked) {
-          console.log(
-            "[BacList][Jogar] botão Jogar clicado na tela —",
-            inj[0].result.method,
-          );
           return { clicked: true, method: inj[0].result.method };
         }
       } catch (_) {}
@@ -1018,7 +919,6 @@ async function _pollAndClickPlayButton(tabId, timeoutMs) {
     if (Date.now() - start >= timeoutMs) break;
     await _cdpDelay(400);
   } while (Date.now() - start < timeoutMs);
-  console.log("[BacList][Jogar] botão Jogar não apareceu em", timeoutMs, "ms");
   return { clicked: false };
 }
 
@@ -1155,19 +1055,14 @@ async function _pollGameFullscreen(tabId, timeoutMs) {
   while (Date.now() - start < timeoutMs) {
     if (await _playButtonStillVisible(tabId)) {
       if (await _pageHasFullscreen(tabId)) {
-        console.log(
-          "[BacList][TelaInteira] capa do Jogar ainda aberta — saindo da tela inteira",
-        );
         await _exitPageFullscreen(tabId);
         await _cdpDelay(400);
       }
-      console.log("[BacList][Jogar] clicando para iniciar antes da tela inteira");
       await _tryClickPlayButton(tabId, 8000);
       await _cdpDelay(1200);
       continue;
     }
     if (await _pageHasFullscreen(tabId)) {
-      console.log("[BacList][TelaInteira] jogo em tela inteira");
       return { ok: true, already: true };
     }
     const r = await _tryRequestFullscreenOnce(tabId);
@@ -1178,15 +1073,10 @@ async function _pollGameFullscreen(tabId, timeoutMs) {
         continue;
       }
       if ((await _pageHasFullscreen(tabId)) || r.already) {
-        console.log(
-          "[BacList][TelaInteira] tela inteira ao carregar —",
-          r.how || "ok",
-        );
         return { ok: true, how: r.how };
       }
     } else if (r?.reason && r.reason !== lastReason) {
       lastReason = r.reason;
-      console.log("[BacList][TelaInteira]", r.reason);
     }
     await _cdpDelay(700);
   }
@@ -1209,25 +1099,11 @@ async function _enterGameFullscreen(tabId, timeoutMs = 20000) {
 async function _tryHideOverlays(tabId) {
   if (!tabId) return;
   try {
-    const inj = await chrome.scripting.executeScript({
+    await chrome.scripting.executeScript({
       target: { tabId, frameIds: [0] },
       world: "MAIN",
       func: _hideOverlaysInPage,
     });
-    const res = inj?.[0]?.result;
-    if (res?.hiddenMenu)
-      console.log("[BacList][Menu] ✓ mobileMenuWrapper ocultado");
-    if (res?.clickedW37on)
-      console.log("[BacList][Menu] ✓ W37on clicado (fechado)");
-    if (res?.clickedClose || res?.hiddenBlocking) {
-      console.log(
-        "[BacList][Tela] overlays fechados/ocultados:",
-        JSON.stringify({
-          clickedClose: res.clickedClose || 0,
-          hiddenBlocking: res.hiddenBlocking || 0,
-        }),
-      );
-    }
   } catch (_) {}
 }
 
@@ -1261,12 +1137,6 @@ async function _dismissInactivityOverlay(tabId) {
       func: _dismissInactivityInPage,
     });
     const clicked = results?.some((r) => r.result?.clicked);
-    console.log(
-      "[BacList] dismissInactivity tabId:",
-      tabId,
-      "| clicked:",
-      clicked,
-    );
     return { success: true, clicked };
   } catch (e) {
     return { success: false, error: e?.message || String(e) };
@@ -1292,11 +1162,9 @@ function _stopInactivityPolling() {
 
 async function _tryClickHelpButton(tabId) {
   if (!tabId) {
-    console.warn("[BacList][Help] tabId ausente — abortando");
     return;
   }
 
-  console.log("[BacList][Help] ── Verificação iniciada ── tabId=", tabId);
 
   const [scans] = await Promise.all([
     _scanHelpButtonFrames(tabId),
@@ -1309,31 +1177,12 @@ async function _tryClickHelpButton(tabId) {
   if (!target) {
     const anyBtn = scans.find((s) => s.probe?.hasButton);
     if (anyBtn) {
-      console.log(
-        "[BacList][Help] Botão existe mas sem Activated — state=",
-        anyBtn.probe.state,
-        "frame",
-        anyBtn.frameId,
-      );
     } else if (!scans.length) {
-      console.log("[BacList][Help] Nenhum frame acessível na aba");
     } else {
-      console.log(
-        "[BacList][Help] help-button não encontrado em",
-        scans.length,
-        "frame(s)",
-      );
     }
     return;
   }
 
-  console.log(
-    "[BacList][Help] Activated encontrado — frame",
-    target.frameId,
-    target.url,
-    "| rect=",
-    JSON.stringify(target.probe.rect),
-  );
 
   const result = await _clickHelpButtonOnFrame(
     tabId,
@@ -1341,29 +1190,12 @@ async function _tryClickHelpButton(tabId) {
     target.probe,
   );
   if (result?.success && result.verified) {
-    console.log(
-      "[BacList][Help] ✓ Clique efetivo — method=",
-      result.method,
-      "x=",
-      result.x,
-      "y=",
-      result.y,
-    );
   } else {
-    console.warn(
-      "[BacList][Help] ✗ Clique sem efeito:",
-      result?.error || "desconhecido",
-    );
   }
 }
 
 function _startCloseHelpLoop(tabId) {
   _stopCloseHelpLoop();
-  console.log(
-    "[BacList][Help] Loop iniciado — clique imediato + verificação a cada",
-    HELP_CHECK_MS / 1000,
-    "s",
-  );
   _tryClickHelpButton(tabId);
   _helpButtonTimer = setInterval(
     () => _tryClickHelpButton(_activeTabId || tabId),
@@ -1375,7 +1207,6 @@ function _stopCloseHelpLoop() {
   if (_helpButtonTimer) {
     clearInterval(_helpButtonTimer);
     _helpButtonTimer = null;
-    console.log("[BacList][Help] Loop parado");
   }
 }
 const POLL_MS = 2500;
@@ -1782,7 +1613,6 @@ async function _startPolling(preferredTabId) {
   await _poll(true);
   _pollTimer = setInterval(() => _poll(false), POLL_MS);
   _startCloseHelpLoop(tabId);
-  console.log("[BacList] Polling iniciado, tabId:", tabId);
   return { success: true, tabId };
 }
 
@@ -1964,7 +1794,6 @@ async function _reopenBacBoGame(preferredTabId = null) {
   }
   await _cdpDelay(700);
   await _tryHideOverlays(tabId);
-  console.log("[BacList][Pré-entrada] BacBo atualizado:", tabId, url);
   return { success: true, tabId, url, reopened: true };
 }
 
@@ -3079,16 +2908,6 @@ async function _verifyChipSelected(tabId, frameId, chipValue) {
     });
     const probe = inj?.[0]?.result;
     const inconclusive = !probe?.selectedValue && probe?.targetExists;
-    console.log(
-      "[BacList] Ficha selecionada:",
-      probe?.ok ? "✓" : inconclusive ? "?" : "✗",
-      "esperado=",
-      probe?.expectedValue,
-      "atual=",
-      probe?.selectedValue ?? "n/d",
-      "| state=",
-      probe?.selectedState,
-    );
     return { ok: !!probe?.ok, inconclusive, probe };
   } catch (e) {
     console.warn("[BacList] Verificação ficha falhou:", e?.message);
@@ -3146,15 +2965,6 @@ async function _cdpClickViaScriptingViewport(
     };
   }
 
-  console.log(
-    "[BacList] CDP mouse viewport",
-    coords.x,
-    coords.y,
-    "frame",
-    navFrameId,
-    selector,
-    index,
-  );
 
   const r = await _withDebugger({ tabId }, async (dbg) => {
     await _dispatchCdpMouse(dbg, coords.x, coords.y);
@@ -3227,14 +3037,6 @@ async function _cdpClickByQuerySelector(tabId, navFrameId, selector, index) {
       let lastErr =
         "Frame CDP com UI do jogo não encontrado (nav " + navFrameId + ")";
       for (const cdpFrameId of tryIds) {
-        console.log(
-          "[BacList] DOM.click frame",
-          cdpFrameId,
-          "nav",
-          navFrameId,
-          sel,
-          idx,
-        );
         const click = await _cdpDomClickViaDomApi(dbg, cdpFrameId, sel, idx);
         if (click.success) {
           return {
@@ -3616,7 +3418,6 @@ async function _cdpClickLikeDesktop(tabId, selector, index = 0) {
   );
   if (!target.success) return target;
 
-  console.log("[BacList] CDP spot", target.dataRole, "frameId", target.frameId);
 
   const clickR = await _cdpClickByQuerySelector(
     tabId,
@@ -3772,13 +3573,6 @@ async function _clickElementWithSession(
       error: `${label || selector} não encontrado em nenhum frame.`,
     };
   }
-  console.log(
-    "[BacList]",
-    label || selector,
-    "→",
-    Math.round(coords.x),
-    Math.round(coords.y),
-  );
   await _dispatchCdpMouse(dbg, coords.x, coords.y);
   return { success: true, selector, x: coords.x, y: coords.y };
 }
@@ -3814,13 +3608,6 @@ async function _dispatchMouseOnIframeTarget(iframeDbg, selector) {
   const cx = (model.content[0] + model.content[2]) / 2;
   const cy = (model.content[1] + model.content[5]) / 2;
 
-  console.log(
-    "[BacList] iframe-target click",
-    selector,
-    "→",
-    Math.round(cx),
-    Math.round(cy),
-  );
   await _dispatchCdpMouse(iframeDbg, cx, cy);
   return { success: true, x: cx, y: cy };
 }
@@ -3924,7 +3711,6 @@ async function _verifyBetOnSpot(iframeDbg, spotSel) {
 }
 async function _cdpClickChipByValue(tabId, chipValue) {
   const val = Number(chipValue) || 5;
-  console.log("[BacList] chip click", val);
   return _withDebugger({ tabId }, async (dbg) => {
     await _cdpDelay(80);
     const allFrames = await chrome.webNavigation.getAllFrames({ tabId });
@@ -3996,11 +3782,6 @@ async function _repeatBetInGameFrame(tabId, doDouble) {
         error: "repeat-button: " + (repeatR.error || "falha"),
         repeatR,
       };
-    console.log(
-      "[BacList] repeat-button clicado →",
-      repeatR.localX,
-      repeatR.localY,
-    );
 
     if (!doDouble) return { success: true, method: "repeat", repeatR };
 
@@ -4014,11 +3795,6 @@ async function _repeatBetInGameFrame(tabId, doDouble) {
         repeatR,
         doubleR,
       };
-    console.log(
-      "[BacList] double-button clicado →",
-      doubleR.localX,
-      doubleR.localY,
-    );
     return { success: true, method: "repeat+double", repeatR, doubleR };
   } catch (e) {
     console.error("[BacList] _repeatBetInGameFrame erro:", e);
@@ -4044,12 +3820,6 @@ async function _placeAmountOnSpot(tabId, spotSel, amount, baseBoard = 0) {
   }
   const expectedBoard = Math.round((baseBoard + total) * 100) / 100;
 
-  console.log(
-    "[BacList] plano fichas",
-    profile.live ? "ao vivo" : profile.id,
-    total,
-    plan,
-  );
 
   return _withDebugger({ tabId }, async (tabDbg) => {
     // Habilita descoberta de iframe targets (cross-origin iframes passam a ser visíveis)
@@ -4086,7 +3856,6 @@ async function _placeAmountOnSpot(tabId, spotSel, amount, baseBoard = 0) {
         try {
           await chrome.debugger.attach(candidate, "1.3");
           iframeDbg = candidate;
-          console.log("[BacList] usando iframe target CDP:", ti.url);
           break;
         } catch (_) {}
       }
@@ -4104,16 +3873,12 @@ async function _placeAmountOnSpot(tabId, spotSel, amount, baseBoard = 0) {
         try {
           await chrome.debugger.attach(candidate, "1.3");
           iframeDbg = candidate;
-          console.log("[BacList] usando iframe target (getTargets):", t.url);
           break;
         } catch (_) {}
       }
     }
 
     if (!iframeDbg) {
-      console.log(
-        "[BacList] iframe target não disponível — usando viewport coords (fallback)",
-      );
     }
 
     /* Clica em um seletor: via iframe target (preferido) ou viewport coords (fallback) */
@@ -4136,13 +3901,6 @@ async function _placeAmountOnSpot(tabId, spotSel, amount, baseBoard = 0) {
           success: false,
           error: `${selector} não encontrado em nenhum frame`,
         };
-      console.log(
-        "[BacList] viewport click",
-        selector,
-        "→",
-        Math.round(coords.x),
-        Math.round(coords.y),
-      );
       await _dispatchCdpMouse(tabDbg, coords.x, coords.y);
       return { success: true, x: coords.x, y: coords.y };
     };
@@ -4164,18 +3922,6 @@ async function _placeAmountOnSpot(tabId, spotSel, amount, baseBoard = 0) {
         if (hit) {
           const { ok, selectedValue, selectedState, targetDataValue } =
             hit.result;
-          console.log(
-            "[BacList] verifyChip",
-            value,
-            "| ok:",
-            ok,
-            "| selectedValue:",
-            selectedValue,
-            "| selectedState:",
-            selectedState,
-            "| targetDataValue:",
-            targetDataValue,
-          );
           return ok;
         }
         return false;
@@ -4282,7 +4028,6 @@ async function _poll(forceSend) {
       .sendMessage({ action: "historyUpdate", history, tabId: _activeTabId })
       .catch(() => {});
   } catch (e) {
-    console.warn("[BacList] _poll erro:", e?.message || e);
   }
 }
 
@@ -4292,7 +4037,6 @@ async function _readAllFrames(tabId) {
   try {
     const gameFrames = await _getGameFrames(tabId);
     if (!gameFrames.length) {
-      console.warn("[BacList] Nenhum frame encontrado na aba", tabId);
       return null;
     }
 
@@ -4339,7 +4083,6 @@ async function _waitForFooterExpanded(tabId, timeoutMs = 10000) {
           ),
       });
       if (results?.some((r) => r.result === true)) {
-        console.log("[BacList] footer expandido — colocando fichas");
         return true;
       }
     } catch (_) {
@@ -4390,7 +4133,6 @@ async function _waitForBettingChips(tabId, timeoutMs = 12000) {
         func: _probeBettingChipsReady,
       });
       if (results?.some((r) => r.result === true)) {
-        console.log("[BacList] fichas visíveis após o empate");
         await _cdpDelay(800);
         return true;
       }

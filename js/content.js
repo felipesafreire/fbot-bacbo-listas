@@ -133,4 +133,3 @@ function fillInput(el, value) {
 
 function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-console.log('[BacList] content.js carregado —', window.location.href.slice(0, 80));

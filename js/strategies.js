@@ -341,11 +341,9 @@ const Strategies = (() => {
         action: "startHistoryPolling",
       });
       if (!r?.success && r?.error) {
-        console.warn("[BacList] Polling:", r.error);
         _showToast(r.error, "error");
       }
     } catch (err) {
-      console.warn("[BacList] startHistoryPolling:", err?.message || err);
     }
 
     _monitorRunning = true;
@@ -504,10 +502,6 @@ const Strategies = (() => {
       }
 
       _preflightRequests.add(key);
-      console.log(
-        "[BacList][Pré-entrada] Reabrindo BacBo antes de",
-        key,
-      );
       chrome.runtime
         .sendMessage({
           action: "reopenGameForEntry",
@@ -517,7 +511,6 @@ const Strategies = (() => {
           _preflightRequests.delete(key);
           if (result?.success && _autoEnabled) {
             _preflightKeys.add(key);
-            console.log("[BacList][Pré-entrada] Jogo preparado:", key);
           } else {
             console.warn(
               "[BacList][Pré-entrada] Falha ao reabrir:",
@@ -631,13 +624,6 @@ const Strategies = (() => {
       recordPatternRefund(entry.target, match);
     }
 
-    console.info("[BacList] Entrada abortada por padrão", {
-      horario: key,
-      alvo: entry.target,
-      esperado: match.expected,
-      regra: match.rule,
-      historico: match.snapshot,
-    });
     _showToast(`Reembolso: ${match.reason}`, "info");
     _refreshSignalUI();
   }
@@ -758,13 +744,6 @@ const Strategies = (() => {
     _firedKeys.add(key);
     info.betScheduled = true;
     if (_ensureCatalogSlot(entry, "scheduled")) _refreshSignalUI();
-    console.log(
-      "[BacList] Entrada por",
-      source === "clock" ? "relogio" : "historico",
-      key,
-      "-> aguardando footer expandido ->",
-      entry.target,
-    );
     (async () => {
       try {
         await chrome.runtime.sendMessage({ action: "waitForFooterExpanded" });
@@ -1089,10 +1068,6 @@ const Strategies = (() => {
           const entryMs = _entryTriggerDateTime(e, now);
           if (now.getTime() > entryMs.getTime()) {
             _firedKeys.add(key);
-            console.log(
-              "[BacList] Entrada passada descartada ao ligar automação:",
-              key,
-            );
           }
         }
         _runEntryPreflights(now);

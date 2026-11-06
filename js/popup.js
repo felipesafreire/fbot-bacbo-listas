@@ -314,7 +314,6 @@ async function pollLiveHistoryOnce() {
     }
     if (r?.error) showHistoryStatus(r.error);
   } catch (err) {
-    console.warn("[BacList] pollLiveHistoryOnce:", err?.message || err);
     showHistoryStatus("Erro ao ler histórico — recarregue a extensão.");
   }
 }
@@ -880,7 +879,6 @@ async function _fetchFreshRoadHistory() {
     const r = await chrome.runtime.sendMessage({ action: "fetchLiveHistory" });
     if (r?.history?.length) return r.history;
   } catch (e) {
-    console.warn("[BacList] fetchFreshRoadHistory:", e?.message || e);
   }
   return _roadHistory;
 }
@@ -907,11 +905,6 @@ function _peekPendingResultCor(road) {
 
   if (curSig === baseSig) return null; // nenhuma rodada nova
 
-  console.log("[BacList] Nova rodada detectada via sig50", {
-    base: baseSig.slice(-10),
-    atual: curSig.slice(-10),
-    roadLen: road.length,
-  });
 
   return road[road.length - 1].cor;
 }
@@ -1159,24 +1152,6 @@ async function executeBet(colorTarget, options = {}) {
             : null,
       };
 
-      console.log("[BacList] Aposta executada", {
-        alvo: TARGET_LABELS[colorTarget] || colorTarget,
-        valor: mainAmount,
-        empate: tieProtect ? tieAmount : 0,
-        gale: galeStepLabel(galeStep),
-        metodo: isGale
-          ? isCustomGale
-            ? "chip-spot-custom"
-            : state.galeDouble
-            ? "repeat+double"
-            : "repeat"
-          : "chip-spot",
-        fromGale,
-        postLen: road.length,
-        betSig50_tail: postSig.slice(-10),
-        plano: result.mainPlan,
-        planoEmpate: result.tiePlan,
-      });
 
       recordBet(target, mainAmount, tieProtect, tieAmount, "pending", galeStep);
       showLastBet(target, mainAmount, tieProtect, tieAmount, galeStep);
@@ -1251,7 +1226,6 @@ function logRoundDebug(road, roundInfo, galeInfo) {
 
   if (_lastRoadSig === null) {
     _lastRoadSig = sig;
-    console.log(`[BacList] Baseline: ${road?.length || 0} rodadas`);
     return;
   }
   if (sig === _lastRoadSig) return;
@@ -1287,7 +1261,6 @@ function logRoundDebug(road, roundInfo, galeInfo) {
     acao && `  ${acao}`,
   ].filter(Boolean);
 
-  console.log(parts.join("\n"));
 }
 
 function calculateEntryPnl(entry, result, resultCor, meta = {}) {
