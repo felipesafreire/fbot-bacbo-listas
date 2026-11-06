@@ -70,6 +70,9 @@ try {
       ".env",
       ".env.*",
       "*.DS_Store",
+      "CLAUDE.md",
+      ".claude/*",
+      ".claude/**",
     ],
     { cwd: extDir, stdio: "inherit" },
   );
@@ -88,6 +91,8 @@ try {
       "--exclude=.env",
       "--exclude=.env.*",
       "--exclude=*.DS_Store",
+      "--exclude=CLAUDE.md",
+      "--exclude=.claude",
       ".",
     ],
     { cwd: extDir, stdio: "inherit" },
