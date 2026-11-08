@@ -8,4 +8,4 @@ Extensão Chrome MV3 na raiz (`manifest.json`, `popup.html`, `js/`). Entradas po
 
 ## Regras
 
-Em `.claude/rules/`. Sempre carregada: `extension-update` — patch no manifest + `node scripts/pack-extension.js` ao alterar a extensão.
+Em `.claude/rules/` (copiadas de `.cursor/rules/`; ao mudar uma, mudar as duas). Sempre carregada: `extension-update` — patch no manifest + `node scripts/pack-extension.js` ao alterar a extensão.

@@ -23,6 +23,7 @@ const EXCLUDED_TOP_LEVEL = new Set([
   ".env",
   "CLAUDE.md",
   ".claude",
+  ".cursor",
   "node_modules",
   "package.json",
   "package-lock.json",
