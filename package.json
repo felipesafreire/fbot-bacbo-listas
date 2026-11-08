@@ -1,0 +1,11 @@
+{
+  "name": "fbot-bacbo-listas",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "pack": "node scripts/pack-extension.js"
+  },
+  "devDependencies": {
+    "javascript-obfuscator": "^4.1.1"
+  }
+}

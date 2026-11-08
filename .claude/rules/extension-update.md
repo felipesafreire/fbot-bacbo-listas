@@ -11,7 +11,7 @@ Se não houve alteração na extensão, não suba versão e não gere zip.
 Se houve alteração, faça estes passos antes de responder que terminou. Não peça confirmação.
 
 1. Suba um patch em `manifest.json` (`1.0.4` → `1.0.5`). Uma vez por tarefa, mesmo com vários arquivos.
-2. Na raiz de `fbot-bacbo-listas`, rode `node scripts/pack-extension.js`. A saída vai para `RELEASES_DIR` do `.env` (veja `.env.example`).
+2. Na raiz de `fbot-bacbo-listas`, rode `node scripts/pack-extension.js`. A saída vai para `RELEASES_DIR` do `.env` (veja `.env.example`). O script ofusca o JS próprio em uma cópia temporária antes de zipar — ver `scripts/obfuscate.js`. Precisa ter rodado `npm install` uma vez no repo. Não editar o zip nem os arquivos ofuscados à mão.
 3. Confira que `listas-release.json` em `RELEASES_DIR` está com a mesma versão do manifest e que `fbot-listas.zip` existe.
 4. Na resposta, diga a versão nova e que falta `bin/deploy.sh` no projeto do bot para o outro computador receber o zip.
 
