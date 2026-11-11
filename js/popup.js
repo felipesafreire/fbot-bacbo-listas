@@ -24,6 +24,7 @@ const state = {
   tieGaleCustomValues: {},
   tieProtectCustomValues: {},
   tieGaleMode: 0, // gales para listas de empate (independente)
+  cycleLevel: 0, // ciclo: cada red dobra a próxima entrada (x2^nível); green zera
   patternGuard: PatternGuard.normalizeConfig(PatternGuard.DEFAULT_CONFIG),
   isPopout: false,
 };
@@ -793,19 +794,55 @@ function getAmountForStep(step, base, mode = state.galeModeType, customValues = 
   return Math.max(snapTo5(base * Math.pow(2, step)), 5);
 }
 
+/* ========== Ciclo: red dobra a próxima entrada, green volta ao nível 0 ========== */
+function isCycleEnabled() {
+  return !!$("cycleEnabled")?.checked;
+}
+
+function getCycleMultiplier() {
+  return isCycleEnabled() ? Math.pow(2, state.cycleLevel) : 1;
+}
+
+function applyCycle(amount) {
+  const mult = getCycleMultiplier();
+  if (mult === 1) return amount;
+  return Math.max(snapTo5(amount * mult), 5);
+}
+
+function setCycleLevel(level) {
+  state.cycleLevel = Math.max(0, level | 0);
+  renderCycleHint();
+}
+
+function renderCycleHint() {
+  const hint = $("cycleHint");
+  if (!hint) return;
+  if (!isCycleEnabled()) {
+    hint.textContent =
+      "Red dobra a próxima entrada (entrada, gales e proteção). Volta ao normal no green.";
+    return;
+  }
+  hint.textContent =
+    state.cycleLevel === 0
+      ? "Ativo — próxima entrada no valor normal (x1)."
+      : `Ativo — ${state.cycleLevel} red(s) seguidos, próxima entrada x${getCycleMultiplier()}.`;
+}
+
 function getBetAmountForStep(step, isTie) {
   const baseId = isTie ? "tieEntryAmount" : "betAmount";
   const base = readCurrencyInput(baseId);
   const customValues = isTie ? state.tieGaleCustomValues : state.galeCustomValues;
-  return getAmountForStep(step, base, state.galeModeType, customValues);
+  return applyCycle(getAmountForStep(step, base, state.galeModeType, customValues));
 }
 
 function getTieProtectAmountForStep(step) {
-  return getAmountForStep(
-    step,
-    readCurrencyInput("tieAmount"),
-    state.galeModeType,
-    state.tieProtectCustomValues,
+  return applyCycle(
+    getAmountForStep(
+      step,
+      readCurrencyInput("tieAmount"),
+      state.galeModeType,
+      state.tieProtectCustomValues,
+    ),
   );
 }
 
@@ -827,6 +864,7 @@ function toggleAutoMode() {
     btn.classList.add("active");
     label.textContent = "Parar Automação";
     setStatus("auto", "Rodando", "#63b3ed");
+    setCycleLevel(0);
     showToast("Automação iniciada — monitorando estratégias", "info");
     chrome.runtime.sendMessage(
       { action: "setAutomationRunning", active: true },
@@ -980,6 +1018,7 @@ function _processPendingBetResult(road, resultCor, info) {
 
   if (won) {
     state.galeStep = 0;
+    if (!_pendingBet.tieSeco) setCycleLevel(0);
     finalizePendingBet("win", resultCor, { tieMultiplier });
     checkStopConditions();
     if (typeof Strategies !== "undefined" && Strategies.signalGreen) {
@@ -1015,7 +1054,11 @@ function _processPendingBetResult(road, resultCor, info) {
     g1Blocked = sequenceBlocksG1(road, betTarget);
   }
 
-  const shouldGale = galeStepAtBet < maxGale && !g1Blocked;
+  // Entrada em cor sem proteção e saiu empate: red direto, sem gale.
+  const unprotectedTie =
+    !isTieEntry && !_pendingBet.tieSeco && !hasTieProtection && resultCor === "T";
+
+  const shouldGale = galeStepAtBet < maxGale && !g1Blocked && !unprotectedTie;
 
   if (shouldGale) {
     state.galeStep = galeStepAtBet + 1;
@@ -1037,14 +1080,22 @@ function _processPendingBetResult(road, resultCor, info) {
 
   state.galeStep = 0;
   state.losses++;
+  if (!_pendingBet.tieSeco && isCycleEnabled()) {
+    setCycleLevel(state.cycleLevel + 1);
+  }
 
   if (typeof Strategies !== "undefined" && Strategies.signalLoss) {
     Strategies.signalLoss(galeStepAtBet + 1);
   }
+  const cycleMsg = isCycleEnabled() && !_pendingBet.tieSeco
+    ? ` — ciclo: próxima entrada x${getCycleMultiplier()}`
+    : "";
   showToast(
-    g1Blocked
+    (g1Blocked
       ? `G1 cancelado — ${g1Blocked.reason}`
-      : "Loss — sequência encerrada",
+      : unprotectedTie
+        ? "Red — empate sem proteção"
+        : "Loss — sequência encerrada") + cycleMsg,
     g1Blocked ? "info" : "error",
   );
   _pendingBet = null;
@@ -1703,6 +1754,10 @@ function bindConfigControls() {
 
   $("tieAmount")?.addEventListener("change", saveConfig);
   $("tieDuploSeco")?.addEventListener("change", saveConfig);
+  $("cycleEnabled")?.addEventListener("change", () => {
+    setCycleLevel(0);
+    saveConfig();
+  });
   $("tieDuploSecoChip")?.addEventListener("change", () => {
     updateTieDuploSecoHint();
     saveConfig();
@@ -1729,6 +1784,7 @@ function bindHistoryControls() {
       state.totalPnl = 0;
       state.historyReds = 0;
       state.galeStep = 0;
+      setCycleLevel(0);
       saveHistory();
       renderHistory();
       updateUI();
@@ -1840,6 +1896,7 @@ function saveConfig() {
     chipProfile: $("chipProfile")?.value || "bacbo_br",
     fullscreenOnLoad: $("fullscreenOnLoad")?.checked !== false,
     tieDuploSeco: $("tieDuploSeco")?.checked || false,
+    cycleEnabled: isCycleEnabled(),
     tieDuploSecoChip: readCurrencyInput("tieDuploSecoChip"),
     skipG1OnSequence: $("skipG1OnSequence")?.checked || false,
     skipG1SequenceLength: skipG1SequenceLength(),
@@ -1917,6 +1974,8 @@ function loadConfig() {
       $("fullscreenOnLoad").checked = c.fullscreenOnLoad !== false;
     }
     if ($("tieDuploSeco")) $("tieDuploSeco").checked = !!c.tieDuploSeco;
+    if ($("cycleEnabled")) $("cycleEnabled").checked = !!c.cycleEnabled;
+    renderCycleHint();
     setVal("tieDuploSecoChip", c.tieDuploSecoChip ?? 5);
     if ($("skipG1OnSequence")) {
       $("skipG1OnSequence").checked = c.skipG1OnSequence !== false;
