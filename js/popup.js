@@ -24,7 +24,7 @@ const state = {
   tieGaleCustomValues: {},
   tieProtectCustomValues: {},
   tieGaleMode: 0, // gales para listas de empate (independente)
-  cycleLevel: 0, // ciclo: cada red dobra a próxima entrada (x2^nível); green zera
+  cycleMult: 1, // ciclo: após red, próxima SG = último valor apostado x2 (multiplicador sobre a base); green volta a 1
   patternGuard: PatternGuard.normalizeConfig(PatternGuard.DEFAULT_CONFIG),
   isPopout: false,
 };
@@ -794,13 +794,13 @@ function getAmountForStep(step, base, mode = state.galeModeType, customValues = 
   return Math.max(snapTo5(base * Math.pow(2, step)), 5);
 }
 
-/* ========== Ciclo: red dobra a próxima entrada, green volta ao nível 0 ========== */
+/* ========== Ciclo: após red, próxima SG = último valor apostado x2; green volta ao normal ========== */
 function isCycleEnabled() {
   return !!$("cycleEnabled")?.checked;
 }
 
 function getCycleMultiplier() {
-  return isCycleEnabled() ? Math.pow(2, state.cycleLevel) : 1;
+  return isCycleEnabled() ? state.cycleMult : 1;
 }
 
 function applyCycle(amount) {
@@ -809,8 +809,8 @@ function applyCycle(amount) {
   return Math.max(snapTo5(amount * mult), 5);
 }
 
-function setCycleLevel(level) {
-  state.cycleLevel = Math.max(0, level | 0);
+function setCycleMult(mult) {
+  state.cycleMult = Number.isFinite(mult) && mult > 1 ? mult : 1;
   renderCycleHint();
 }
 
@@ -819,13 +819,13 @@ function renderCycleHint() {
   if (!hint) return;
   if (!isCycleEnabled()) {
     hint.textContent =
-      "Red dobra a próxima entrada (entrada, gales e proteção). Volta ao normal no green.";
+      "Após red, a próxima SG é o dobro do último valor apostado; gales e proteção acompanham. Volta ao normal no green.";
     return;
   }
   hint.textContent =
-    state.cycleLevel === 0
-      ? "Ativo — próxima entrada no valor normal (x1)."
-      : `Ativo — ${state.cycleLevel} red(s) seguidos, próxima entrada x${getCycleMultiplier()}.`;
+    state.cycleMult === 1
+      ? "Ativo — próxima entrada no valor normal."
+      : `Ativo — próxima SG ${formatCurrency(applyCycle(readCurrencyInput("betAmount")))} (x${state.cycleMult}).`;
 }
 
 function getBetAmountForStep(step, isTie) {
@@ -864,7 +864,7 @@ function toggleAutoMode() {
     btn.classList.add("active");
     label.textContent = "Parar Automação";
     setStatus("auto", "Rodando", "#63b3ed");
-    setCycleLevel(0);
+    setCycleMult(1);
     showToast("Automação iniciada — monitorando estratégias", "info");
     chrome.runtime.sendMessage(
       { action: "setAutomationRunning", active: true },
@@ -1018,7 +1018,7 @@ function _processPendingBetResult(road, resultCor, info) {
 
   if (won) {
     state.galeStep = 0;
-    if (!_pendingBet.tieSeco) setCycleLevel(0);
+    if (!_pendingBet.tieSeco) setCycleMult(1);
     finalizePendingBet("win", resultCor, { tieMultiplier });
     checkStopConditions();
     if (typeof Strategies !== "undefined" && Strategies.signalGreen) {
@@ -1081,14 +1081,17 @@ function _processPendingBetResult(road, resultCor, info) {
   state.galeStep = 0;
   state.losses++;
   if (!_pendingBet.tieSeco && isCycleEnabled()) {
-    setCycleLevel(state.cycleLevel + 1);
+    // Próxima SG = último valor apostado nesta sequência x2.
+    const base = readCurrencyInput(isTieEntry ? "tieEntryAmount" : "betAmount");
+    const lastStake = _pendingBet.mainAmount || 0;
+    if (base > 0 && lastStake > 0) setCycleMult((lastStake * 2) / base);
   }
 
   if (typeof Strategies !== "undefined" && Strategies.signalLoss) {
     Strategies.signalLoss(galeStepAtBet + 1);
   }
   const cycleMsg = isCycleEnabled() && !_pendingBet.tieSeco
-    ? ` — ciclo: próxima entrada x${getCycleMultiplier()}`
+    ? ` — ciclo: próxima SG ${formatCurrency(applyCycle(readCurrencyInput(isTieEntry ? "tieEntryAmount" : "betAmount")))}`
     : "";
   showToast(
     (g1Blocked
@@ -1755,7 +1758,7 @@ function bindConfigControls() {
   $("tieAmount")?.addEventListener("change", saveConfig);
   $("tieDuploSeco")?.addEventListener("change", saveConfig);
   $("cycleEnabled")?.addEventListener("change", () => {
-    setCycleLevel(0);
+    setCycleMult(1);
     saveConfig();
   });
   $("tieDuploSecoChip")?.addEventListener("change", () => {
@@ -1784,7 +1787,7 @@ function bindHistoryControls() {
       state.totalPnl = 0;
       state.historyReds = 0;
       state.galeStep = 0;
-      setCycleLevel(0);
+      setCycleMult(1);
       saveHistory();
       renderHistory();
       updateUI();
