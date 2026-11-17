@@ -186,7 +186,7 @@ function hideAuthScreen() {
 
 function onAuthLost(message) {
   BacListTelegram.stop();
-  if (state.autoMode) toggleAutoMode();
+  if (state.autoMode) toggleAutoMode({ silent: true });
   showAuthScreen(message);
 }
 
@@ -851,14 +851,46 @@ function getTieProtectAmountForStep(step) {
 
 /* ========== Main Controls ========== */
 function bindMainControls() {
-  $("btnAuto").addEventListener("click", toggleAutoMode);
+  $("btnAuto").addEventListener("click", () => toggleAutoMode());
   $("bettingHouse")?.addEventListener("change", saveConfig);
   $("chipProfile")?.addEventListener("change", saveConfig);
   $("fullscreenOnLoad")?.addEventListener("change", saveConfig);
 }
 
+/* ========== Avisos no bot do Telegram (igual ao Automático) ========== */
+let _notifyStats = { entries: 0, wins: 0, losses: 0, ties: 0, startPnl: 0 };
+
+function resetNotifyStats() {
+  _notifyStats = { entries: 0, wins: 0, losses: 0, ties: 0, startPnl: state.totalPnl };
+}
+
+function notifyBot(type, meta = {}) {
+  if (typeof BacListTelegram === "undefined") return;
+  void BacListTelegram.notify(type, meta);
+}
+
+/** Resumo da sessão para "Automação desligada". Lido na hora do envio. */
+function notifySummary(reason) {
+  return () => ({
+    reason: reason || "manual",
+    entries: _notifyStats.entries,
+    wins: _notifyStats.wins,
+    losses: _notifyStats.losses,
+    ties: _notifyStats.ties,
+    pnl: Math.round((state.totalPnl - _notifyStats.startPnl) * 100) / 100,
+  });
+}
+
+const NOTIFY_SIDE = { A: "player", V: "banker", T: "tie" };
+
 /* ========== Auto Mode ========== */
-function toggleAutoMode() {
+/**
+ * @param {{ reason?: string, silent?: boolean }} options
+ *   reason: motivo do desligamento no aviso do Telegram (stopWin, stopLoss, betLimit…).
+ *   silent: não avisa no Telegram (comando /ligar e /parar já respondem).
+ */
+function toggleAutoMode(options = {}) {
+  const { reason = "manual", silent = false } = options;
   state.autoMode = !state.autoMode;
   const btn = $("btnAuto");
   const label = $("autoLabel");
@@ -868,12 +900,15 @@ function toggleAutoMode() {
     label.textContent = "Parar Automação";
     setStatus("auto", "Rodando", "#63b3ed");
     setCycleMult(1);
+    resetNotifyStats();
+    if (!silent) notifyBot("automation_started", {});
     showToast("Automação iniciada — monitorando estratégias", "info");
     chrome.runtime.sendMessage(
       { action: "setAutomationRunning", active: true },
       () => Strategies.setAutoEnabled(true),
     );
   } else {
+    if (!silent) notifyBot("automation_stopped", notifySummary(reason));
     btn.classList.remove("active");
     label.textContent = "Iniciar Automação";
     setStatus("", "Inativo", "");
@@ -1019,7 +1054,19 @@ function _processPendingBetResult(road, resultCor, info) {
   info.won = won;
   info.tieMultiplier = tieMultiplier;
 
+  // Resultado no Telegram antes de um possível "Automação desligada" (stop win/loss).
+  notifyBot("entry_result", {
+    result: won ? "green" : "loss",
+    game: "bacbo",
+    side: NOTIFY_SIDE[betTarget] || "",
+    winner: NOTIFY_SIDE[resultCor] || "",
+    galeLevel: galeStepAtBet,
+    maxGale: Number(maxGale) || 0,
+    ciclo: false,
+  });
+
   if (won) {
+    _notifyStats.wins++;
     state.galeStep = 0;
     if (!_pendingBet.tieSeco) setCycleMult(1);
     finalizePendingBet("win", resultCor, { tieMultiplier });
@@ -1047,6 +1094,7 @@ function _processPendingBetResult(road, resultCor, info) {
   saveStats();
 
   if (checkStopConditions()) {
+    _notifyStats.losses++;
     state.galeStep = 0;
     _pendingBet = null;
     return info;
@@ -1083,6 +1131,7 @@ function _processPendingBetResult(road, resultCor, info) {
 
   state.galeStep = 0;
   state.losses++;
+  _notifyStats.losses++;
   if (!_pendingBet.tieSeco && isCycleEnabled()) {
     // Próxima SG = último valor apostado nesta sequência x2.
     const base = readCurrencyInput(isTieEntry ? "tieEntryAmount" : "betAmount");
@@ -1159,8 +1208,25 @@ async function executeBet(colorTarget, options = {}) {
     !tieSeco && !isTieEntry && ($("tieProtection")?.checked || false);
   const tieAmount = tieProtect ? getTieProtectAmountForStep(galeStep) : 0;
   const selectors = getSelectors();
+  const maxGale = tieSeco ? 0 : isTieEntry ? state.tieGaleMode : state.galeMode;
+  const notifySource = isGale ? "gale" : tieSeco ? "empate seco" : "lista";
+  const notifySide = NOTIFY_SIDE[colorTarget] || target;
 
   const preSig = _roadSig(_roadHistory);
+  let placed = false;
+
+  // Entrada nova (não gale): avisa antes de clicar, como o Automático.
+  const announced = !fromGale;
+  if (announced) {
+    notifyBot("entry_identified", {
+      game: "bacbo",
+      side: notifySide,
+      source: notifySource,
+      galeLevel: galeStep,
+      maxGale: Number(maxGale) || 0,
+      ciclo: false,
+    });
+  }
 
   try {
     const { tabId } = await chrome.runtime.sendMessage({
@@ -1212,6 +1278,18 @@ async function executeBet(colorTarget, options = {}) {
 
       recordBet(target, mainAmount, tieProtect, tieAmount, "pending", galeStep);
       showLastBet(target, mainAmount, tieProtect, tieAmount, galeStep);
+      placed = true;
+      if (!fromGale) _notifyStats.entries++;
+      notifyBot("entry_placed", {
+        game: "bacbo",
+        side: notifySide,
+        amount: Math.round(mainAmount * 100) / 100,
+        tieAmount: tieProtect ? Math.round(tieAmount * 100) / 100 : 0,
+        source: notifySource,
+        galeLevel: galeStep,
+        maxGale: Number(maxGale) || 0,
+        ciclo: false,
+      });
 
       const names = { player: "Jogador", banker: "Casa", tie: "Empate" };
       const galeMethodLabel =
@@ -1230,7 +1308,7 @@ async function executeBet(colorTarget, options = {}) {
         state.betCount++;
         const limit = parseInt($("betLimit")?.value) || 0;
         if (limit > 0 && state.betCount >= limit) {
-          if (state.autoMode) toggleAutoMode();
+          if (state.autoMode) toggleAutoMode({ reason: "betLimit" });
           showToast(`Limite de ${limit} apostas atingido`, "info");
         }
       }
@@ -1257,8 +1335,10 @@ async function executeBet(colorTarget, options = {}) {
         erro: result?.error,
       });
       showToast(result?.error || "Não foi possível executar a aposta", "error");
+      if (announced) notifyBot("entry_cancelled", {});
     }
   } catch (err) {
+    if (announced && !placed) notifyBot("entry_cancelled", {});
     showToast("Erro: recarregue a página do jogo", "error");
     console.error("[BacList]", err);
   }
@@ -1387,7 +1467,7 @@ function checkStopConditions() {
   state.historyReds = redCount;
 
   if (stopRedHistory > 0 && redCount >= stopRedHistory) {
-    if (state.autoMode) toggleAutoMode();
+    if (state.autoMode) toggleAutoMode({ reason: "Limite de reds" });
     showToast(
       `Parou após ${redCount} reds no histórico (Entrada e Gales contam)`,
       "error",
@@ -1396,7 +1476,7 @@ function checkStopConditions() {
   }
 
   if (stopLoss > 0 && state.totalPnl <= -stopLoss) {
-    if (state.autoMode) toggleAutoMode();
+    if (state.autoMode) toggleAutoMode({ reason: "stopLoss" });
     showToast(
       `Stop Loss atingido: R$ ${Math.abs(state.totalPnl).toFixed(2)}`,
       "error",
@@ -1404,7 +1484,7 @@ function checkStopConditions() {
     return true;
   }
   if (stopWin > 0 && state.totalPnl >= stopWin) {
-    if (state.autoMode) toggleAutoMode();
+    if (state.autoMode) toggleAutoMode({ reason: "stopWin" });
     showToast(`Stop Win atingido: R$ ${state.totalPnl.toFixed(2)}`, "success");
     return true;
   }
@@ -2154,12 +2234,12 @@ async function executeTelegramCommand(action, payload = null) {
   }
   if (action === "ligar") {
     if (state.autoMode) return { ok: true, text: "ℹ️ A automação já está ligada." };
-    toggleAutoMode();
+    toggleAutoMode({ silent: true });
     return { ok: true, text: "ℹ️ Apostador ativo. Aguardando entrada automática..." };
   }
   if (action === "parar") {
     if (!state.autoMode) return { ok: true, text: "ℹ️ A automação já está desligada." };
-    toggleAutoMode();
+    toggleAutoMode({ silent: true });
     return { ok: true, text: ["ℹ️ Automação desligada.", ...tgPlacarLines()].join("\n") };
   }
   return { ok: false, text: "⚠️ Comando desconhecido." };

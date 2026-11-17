@@ -1,6 +1,7 @@
 /* Comandos do bot do Telegram no Bac Bo Listas: /status, /ligar, /parar,
    /resetarplacar e /alterarmeta chegam pelo painel (/api/extension/commands/*),
-   mesmo contrato do Bac Bo Automático. Roda no side panel, junto da automação. */
+   mesmo contrato do Bac Bo Automático. Roda no side panel, junto da automação.
+   Avisos de entrada/resultado vão por /api/bot/notify, igual ao Automático. */
 "use strict";
 
 const BacListTelegram = (() => {
@@ -86,6 +87,43 @@ const BacListTelegram = (() => {
     }
   }
 
+  /* ---------- Avisos no chat do bot (/api/bot/notify) ---------- */
+  let notifyChain = Promise.resolve();
+
+  function sendNotify(type, meta) {
+    return BacListAuth.api("/api/bot/notify", {
+      method: "POST",
+      body: JSON.stringify({ type, meta }),
+    });
+  }
+
+  async function deliverNotify(type, meta) {
+    if (!BacListAuth.isLoggedIn()) return;
+    const body = typeof meta === "function" ? meta() : meta || {};
+    try {
+      try {
+        await sendNotify(type, body);
+      } catch (err) {
+        // Painel aceita um aviso por segundo por usuário.
+        if (err?.code !== "rate_limited") throw err;
+        await delay(1100);
+        await sendNotify(type, body);
+      }
+    } catch (err) {
+      console.warn(`[BacList] Aviso no Telegram falhou (${type})`, err?.message || err);
+    }
+  }
+
+  /**
+   * Enfileira um aviso no bot do Telegram (entrada, resultado, liga/desliga).
+   * `meta` pode ser função: é lida na hora do envio, depois dos avisos anteriores.
+   */
+  function notify(type, meta = {}) {
+    const run = notifyChain.then(() => deliverNotify(type, meta));
+    notifyChain = run.catch(() => undefined);
+    return run;
+  }
+
   function start(executor) {
     execute = executor;
     void loop();
@@ -96,5 +134,5 @@ const BacListTelegram = (() => {
     abort?.abort();
   }
 
-  return { start, stop };
+  return { start, stop, notify };
 })();
