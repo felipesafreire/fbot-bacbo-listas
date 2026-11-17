@@ -14,7 +14,8 @@ Se houve alteração, faça estes passos antes de responder que terminou. Não p
 1. Suba um patch em `manifest.json` (`1.0.4` → `1.0.5`). Uma vez por tarefa, mesmo com vários arquivos.
 2. Na raiz de `fbot-bacbo-listas`, rode `node scripts/pack-extension.js`. A saída vai para `RELEASES_DIR` do `.env` (veja `.env.example`). O script ofusca o JS próprio em uma cópia temporária antes de zipar — ver `scripts/obfuscate.js`. Precisa ter rodado `npm install` uma vez no repo. Não editar o zip nem os arquivos ofuscados à mão.
 3. Confira que `listas-release.json` em `RELEASES_DIR` está com a mesma versão do manifest e que `fbot-listas.zip` existe.
-4. Na resposta, diga a versão nova e que falta `bin/deploy.sh` no projeto do bot para o outro computador receber o zip.
+4. Commite o `*-release.json` que mudou no painel e rode `bin/deploy.sh` no checkout principal do painel (regra `deploy-after-feature` do painel). Não peça confirmação.
+5. Na resposta, diga a versão nova e que o deploy foi feito.
 
 A extensão no outro computador é carregada sem compactação. Não use Chrome Web Store nem `update_url`.
 

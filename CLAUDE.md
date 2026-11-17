@@ -3,7 +3,7 @@
 Extensão Chrome MV3 na raiz (`manifest.json`, `popup.html`, `js/`). Entradas por lista de horários, login no painel. Zip publicado pelo painel (`/home/felipe/bacbo-bot-entradas`).
 
 - Nunca criar, alterar ou executar testes, salvo pedido explícito.
-- Nunca rodar nada localmente. Publicação do zip só via `bin/deploy.sh` do painel.
+- Nunca rodar nada localmente. Publicação do zip só via `bin/deploy.sh` do painel, rodado ao terminar toda tarefa que altera a extensão.
 - Não commitar `.env`.
 
 ## Regras
