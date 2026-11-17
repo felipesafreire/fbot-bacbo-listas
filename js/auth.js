@@ -58,7 +58,12 @@ const BacListAuth = (() => {
         method: options.method || "GET",
         headers,
         body: options.body,
-        signal: AbortSignal.timeout(8000),
+        signal: options.signal
+          ? AbortSignal.any([
+              options.signal,
+              AbortSignal.timeout(options.timeoutMs || 8000),
+            ])
+          : AbortSignal.timeout(options.timeoutMs || 8000),
       });
     } catch (err) {
       const error = new Error(
@@ -230,7 +235,13 @@ const BacListAuth = (() => {
     timer = null;
   }
 
+  /** Chamada autenticada ao painel (Bearer da extensão). */
+  function api(path, options = {}) {
+    return request(path, options);
+  }
+
   return {
+    api,
     isLoggedIn,
     username,
     takeNotice,

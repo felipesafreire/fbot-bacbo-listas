@@ -1224,6 +1224,10 @@ const BETTING_HOUSES = {
     url: "https://www.inovabet.bet/casino/evolution/bac-bo",
     clickPlay: false,
   },
+  parimatch: {
+    url: "https://parimatch-hub.bet/pt/casino/live-casino/game/evo-evolution-s10-bac-bo",
+    clickPlay: false,
+  },
 };
 
 function _normalizeGameUrl(url) {

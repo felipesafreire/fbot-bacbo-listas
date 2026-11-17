@@ -185,6 +185,7 @@ function hideAuthScreen() {
 }
 
 function onAuthLost(message) {
+  BacListTelegram.stop();
   if (state.autoMode) toggleAutoMode();
   showAuthScreen(message);
 }
@@ -197,6 +198,7 @@ async function enterApp() {
     .catch(() => {});
   initApp();
   BacListAuth.startHeartbeat(() => state.autoMode, onAuthLost);
+  BacListTelegram.start(executeTelegramCommand);
 }
 
 async function bootAuth() {
@@ -241,6 +243,7 @@ async function onLoginSubmit(event) {
 }
 
 async function onLogout() {
+  BacListTelegram.stop();
   if (state.autoMode) toggleAutoMode();
   await BacListAuth.logout();
   showAuthScreen("");
@@ -1782,18 +1785,22 @@ function bindConfigControls() {
 function bindHistoryControls() {
   $("btnClearHistory").addEventListener("click", () => {
     if (confirm("Deseja limpar o histórico e zerar as estatísticas?")) {
-      state.history = [];
-      state.wins = state.losses = state.betCount = 0;
-      state.totalPnl = 0;
-      state.historyReds = 0;
-      state.galeStep = 0;
-      setCycleMult(1);
-      saveHistory();
-      renderHistory();
-      updateUI();
+      resetPlacar();
       showToast("Histórico limpo", "info");
     }
   });
+}
+
+function resetPlacar() {
+  state.history = [];
+  state.wins = state.losses = state.betCount = 0;
+  state.totalPnl = 0;
+  state.historyReds = 0;
+  state.galeStep = 0;
+  setCycleMult(1);
+  saveHistory();
+  renderHistory();
+  updateUI();
 }
 
 /* ========== Render History ========== */
@@ -2097,4 +2104,63 @@ function showToast(msg, type = "info") {
   toast.className = `toast ${type}`;
   requestAnimationFrame(() => toast.classList.add("show"));
   toastTimer = setTimeout(() => toast.classList.remove("show"), 2800);
+}
+
+
+/* ========== Comandos do bot do Telegram ========== */
+function tgPlacarLines() {
+  return [
+    `🔁 Gale: ${galeStepLabel(state.galeStep)}`,
+    `✅ Greens: ${state.wins}`,
+    `❌ Reds: ${state.losses}`,
+    `💰 Resultado: ${formatSignedCurrency(state.totalPnl)}`,
+  ];
+}
+
+function tgStatusText() {
+  const stopWin = parseFloat($("stopWin")?.value) || 0;
+  const lines = [
+    state.autoMode ? "▶️ Automação ligada (Bac Bo Listas)" : "⏹ Automação desligada (Bac Bo Listas)",
+    `🎯 Entradas: ${state.betCount}`,
+    ...tgPlacarLines(),
+    `🏁 Stop Win: ${stopWin > 0 ? formatCurrency(stopWin) : "desligado"}`,
+  ];
+  if (_pendingBet?.awaiting) lines.push("⏳ Aposta aguardando resultado");
+  return lines.join("\n");
+}
+
+async function executeTelegramCommand(action, payload = null) {
+  if (action === "status") {
+    return { ok: true, text: tgStatusText() };
+  }
+  if (action === "resetarplacar") {
+    resetPlacar();
+    showToast("Placar zerado pelo Telegram", "info");
+    return { ok: true, text: ["ℹ️ Placar zerado.", ...tgPlacarLines()].join("\n") };
+  }
+  if (action === "alterarmeta") {
+    const value = Number(String(payload ?? "").replace(",", "."));
+    if (!Number.isFinite(value) || value < 0 || value > 999999.99) {
+      return { ok: false, text: "⚠️ Valor de Stop Win inválido." };
+    }
+    const stopWin = Math.round(value * 100) / 100;
+    if ($("stopWin")) $("stopWin").value = stopWin;
+    saveConfig();
+    showToast(stopWin === 0 ? "Stop Win desligado" : `Stop Win: ${formatCurrency(stopWin)}`, "info");
+    return {
+      ok: true,
+      text: stopWin === 0 ? "ℹ️ Stop Win desligado." : `ℹ️ Stop Win da sessão: ${formatCurrency(stopWin)}`,
+    };
+  }
+  if (action === "ligar") {
+    if (state.autoMode) return { ok: true, text: "ℹ️ A automação já está ligada." };
+    toggleAutoMode();
+    return { ok: true, text: "ℹ️ Apostador ativo. Aguardando entrada automática..." };
+  }
+  if (action === "parar") {
+    if (!state.autoMode) return { ok: true, text: "ℹ️ A automação já está desligada." };
+    toggleAutoMode();
+    return { ok: true, text: ["ℹ️ Automação desligada.", ...tgPlacarLines()].join("\n") };
+  }
+  return { ok: false, text: "⚠️ Comando desconhecido." };
 }
