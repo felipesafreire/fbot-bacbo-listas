@@ -1211,24 +1211,34 @@ function _stopCloseHelpLoop() {
 }
 const POLL_MS = 2500;
 const EVO_FRAME_MATCH = /evo-games\.com/i;
-const BETTING_HOUSES = {
-  "1win": {
-    url: "https://1win.io/casino/play/v_evolution:bacbo",
-    clickPlay: true,
-  },
-  pixnabanca: {
-    url: "https://www.pixnabanca.club/casino/evolution/bac-bo",
-    clickPlay: false,
-  },
-  inovabet: {
-    url: "https://www.inovabet.bet/casino/evolution/bac-bo",
-    clickPlay: false,
-  },
-  parimatch: {
+/* Casas de aposta: cadastro do admin no painel (/api/listas/casas), gravado pelo
+   popup em chrome.storage.local.bettingHouses. Sem cadastro, usa as casas de sempre. */
+const DEFAULT_BETTING_HOUSES = [
+  { id: "1win", nome: "1Win", url: "https://1win.io/casino/play/v_evolution:bacbo", clickPlay: true },
+  { id: "pixnabanca", nome: "Pix na Banca", url: "https://www.pixnabanca.club/casino/evolution/bac-bo", clickPlay: false },
+  { id: "inovabet", nome: "InovaBet", url: "https://www.inovabet.bet/casino/evolution/bac-bo", clickPlay: false },
+  {
+    id: "parimatch",
+    nome: "Parimatch",
     url: "https://parimatch-hub.bet/pt/casino/live-casino/game/evo-evolution-s10-bac-bo",
     clickPlay: false,
   },
-};
+];
+let _bettingHouses = DEFAULT_BETTING_HOUSES;
+
+function _setBettingHouses(list) {
+  const valid = Array.isArray(list)
+    ? list.filter((h) => h && typeof h.id === "string" && /^https:\/\//i.test(h.url || ""))
+    : [];
+  _bettingHouses = valid.length ? valid : DEFAULT_BETTING_HOUSES;
+}
+
+chrome.storage.local.get("bettingHouses", (data) => _setBettingHouses(data?.bettingHouses));
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.bettingHouses) {
+    _setBettingHouses(changes.bettingHouses.newValue);
+  }
+});
 
 function _normalizeGameUrl(url) {
   try {
@@ -1241,7 +1251,7 @@ function _normalizeGameUrl(url) {
 function _houseFromUrl(url) {
   const current = _normalizeGameUrl(url);
   return (
-    Object.values(BETTING_HOUSES).find((house) =>
+    _bettingHouses.find((house) =>
       current.startsWith(_normalizeGameUrl(house.url)),
     ) || null
   );
@@ -1249,11 +1259,12 @@ function _houseFromUrl(url) {
 
 async function _getBettingHouse() {
   try {
-    const data = await chrome.storage.local.get("bacboConfig");
+    const data = await chrome.storage.local.get(["bacboConfig", "bettingHouses"]);
+    _setBettingHouses(data?.bettingHouses);
     const id = data?.bacboConfig?.bettingHouse;
-    return BETTING_HOUSES[id] || BETTING_HOUSES["1win"];
+    return _bettingHouses.find((h) => h.id === id) || _bettingHouses[0];
   } catch (_) {
-    return BETTING_HOUSES["1win"];
+    return _bettingHouses[0];
   }
 }
 

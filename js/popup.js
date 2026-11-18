@@ -16,17 +16,18 @@ const state = {
   totalPnl: 0,
   historyReds: 0,
   history: [],
-  galeMode: 0, // 0 = sem gale | 1..10 = quantidade de gales
+  galeMode: 1, // 0 = sem gale | 1..10 = quantidade de gales
   galeStep: 0, // passo atual (0 = entrada, 1..N = gale N)
-  galeDouble: false, // false = valor fixo | true = dobrar a cada gale (cores, empate e proteção)
-  galeModeType: "fixed", // fixed | double | custom
-  galeCustomValues: {},
-  tieGaleCustomValues: {},
-  tieProtectCustomValues: {},
-  tieGaleMode: 0, // gales para listas de empate (independente)
+  galeLevels: [
+    { color: 10, tie: 5 },
+    { color: 20, tie: 5 },
+  ], // [{ color, tie }] por nível: Entrada, G1, G2…
+  tieGaleMode: 0, // listas de empate: sempre igual a galeMode
   cycleMult: 1, // ciclo: após red, próxima SG = último valor apostado x2 (multiplicador sobre a base); green volta a 1
   patternGuard: PatternGuard.normalizeConfig(PatternGuard.DEFAULT_CONFIG),
   isPopout: false,
+  bettingHouseId: "1win",
+  bettingHouses: null, // cadastro do painel; null = casas padrão do HTML
 };
 
 /* Histórico da road (evo) + aposta aguardando resultado da próxima rodada */
@@ -114,6 +115,7 @@ function initApp() {
   _appInitialized = true;
 
   detectPopout();
+  loadHousesFromStorage();
   loadConfig();
   loadHistory();
   bindTabs();
@@ -202,6 +204,7 @@ async function enterApp() {
   BacListAuth.startHeartbeat(() => state.autoMode, onAuthLost);
   BacListTelegram.start(executeTelegramCommand);
   startReleaseCheck();
+  void fetchBettingHouses();
 }
 
 async function bootAuth() {
@@ -405,281 +408,151 @@ function bindTargetButtons() {
   // Alvo agora vem da estratégia detectada — sem seleção manual
 }
 
-/* ========== Tie Protection ========== */
+/* ========== Gale (tabela por nível, igual ao Bac Bo Automático) ========== */
+const GALE_MAX = 10;
+
+function _levelValue(raw, fallback) {
+  const n = parseInt(String(raw ?? "").replace(/\D/g, ""), 10);
+  return Number.isFinite(n) && n > 0 ? Math.max(snapTo5(n), 5) : fallback;
+}
+
+/** Garante uma linha por nível (Entrada + gales). Linha nova: cor dobra, empate repete. */
+function _ensureGaleLevels() {
+  const levels = Array.isArray(state.galeLevels) ? state.galeLevels : [];
+  const out = [];
+  for (let i = 0; i <= state.galeMode; i++) {
+    const prev = out[i - 1] || { color: 10, tie: 5 };
+    const cur = levels[i] || {};
+    out.push({
+      color: _levelValue(cur.color, i === 0 ? prev.color : Math.max(snapTo5(prev.color * 2), 5)),
+      tie: _levelValue(cur.tie, prev.tie),
+    });
+  }
+  // Guarda os níveis acima do máximo: voltar a subir o gale recupera os valores.
+  state.galeLevels = out.concat(levels.slice(out.length));
+}
+
+function renderGaleLevels() {
+  const list = $("galeLevelsList");
+  if (!list) return;
+  _ensureGaleLevels();
+  const protect = !!$("tieProtection")?.checked;
+  let html = "";
+  for (let i = 0; i <= state.galeMode; i++) {
+    const lv = state.galeLevels[i];
+    html += `
+      <div class="gale-level-row">
+        <span class="gale-level-tag">${i === 0 ? "Entrada" : `G${i}`}</span>
+        <input type="text" class="field-input gale-level-input" inputmode="numeric" data-step="${i}" data-kind="color" data-raw-value="${lv.color}" value="${formatCurrency(lv.color)}" aria-label="${galeStepLabel(i)} — valor na cor" />
+        <input type="text" class="field-input gale-level-input${protect ? "" : " gale-level-input--off"}" inputmode="numeric" data-step="${i}" data-kind="tie" data-raw-value="${lv.tie}" value="${formatCurrency(lv.tie)}" aria-label="${galeStepLabel(i)} — valor no empate" />
+      </div>`;
+  }
+  list.innerHTML = html;
+}
+
+function _saveGaleLevelInput(input) {
+  const step = parseInt(input.dataset.step, 10);
+  const kind = input.dataset.kind === "tie" ? "tie" : "color";
+  if (!Number.isFinite(step) || !state.galeLevels[step]) return;
+  const value = _levelValue(input.dataset.rawValue || input.value, state.galeLevels[step][kind]);
+  state.galeLevels[step][kind] = value;
+  input.dataset.rawValue = value;
+  input.value = formatCurrency(value);
+  renderCycleHint();
+}
+
 function bindTieProtection() {
   const toggle = $("tieProtection");
-  const row = $("tieValueRow");
   if (!toggle) return;
   toggle.addEventListener("change", () => {
     state.tieProtection = toggle.checked;
-    row.style.display = toggle.checked ? "flex" : "none";
-    _renderTieProtectPreview();
+    renderGaleLevels();
     saveConfig();
   });
 }
 
-/* ========== Gale Selector ========== */
 function bindGaleSelector() {
-  // Input numérico de quantidade de gale (cores)
+  const readCount = () =>
+    Math.min(GALE_MAX, Math.max(0, parseInt($("galeCountInput")?.value, 10) || 0));
   $("galeCountInput")?.addEventListener("change", () => {
-    const v = Math.min(
-      10,
-      Math.max(0, parseInt($("galeCountInput").value) || 0),
-    );
-    $("galeCountInput").value = v;
-    setGaleMode(v);
+    setGaleMode(readCount());
     saveConfig();
   });
-  $("galeCountInput")?.addEventListener("input", () => {
-    const v = Math.min(
-      10,
-      Math.max(0, parseInt($("galeCountInput").value) || 0),
-    );
-    setGaleMode(v);
-  });
+  $("galeCountInput")?.addEventListener("input", () => setGaleMode(readCount(), { keepInput: true }));
 
-  // Toggle Fixo/Dobrar/Personalizado — único, aplica para cores, empate e proteção de empate
-  $("galeModeToggle")?.addEventListener("click", (e) => {
-    const btn = e.target.closest(".gmt-btn");
-    if (!btn) return;
-    setGaleModeType(btn.dataset.mode || (btn.dataset.val === "true" ? "double" : "fixed"));
+  const list = $("galeLevelsList");
+  if (!list) return;
+  list.addEventListener("focusin", (e) => {
+    const input = e.target.closest(".gale-level-input");
+    if (!input) return;
+    input.value = input.dataset.rawValue || "";
+    input.select();
+  });
+  list.addEventListener("input", (e) => {
+    const input = e.target.closest(".gale-level-input");
+    if (!input) return;
+    const digits = (input.value || "").replace(/\D/g, "");
+    input.value = digits;
+    input.dataset.rawValue = digits;
+  });
+  list.addEventListener("focusout", (e) => {
+    const input = e.target.closest(".gale-level-input");
+    if (!input) return;
+    _saveGaleLevelInput(input);
     saveConfig();
   });
-
-  document.addEventListener("input", (e) => {
-    if (e.target?.classList?.contains("gale-custom-input")) {
-      const digits = (e.target.value || "").replace(/\D/g, "");
-      e.target.value = digits;
-      e.target.dataset.rawValue = digits;
-    }
-  });
-
-  document.addEventListener("focusin", (e) => {
-    if (e.target?.classList?.contains("gale-custom-input")) {
-      e.target.value = e.target.dataset.rawValue || "";
-      e.target.select();
-    }
-  });
-
-  document.addEventListener("change", (e) => {
-    if (e.target?.classList?.contains("gale-custom-input")) {
-      _saveCustomGaleInput(e.target);
-      saveConfig();
-    }
-  });
-
-  document.addEventListener("focusout", (e) => {
-    if (e.target?.classList?.contains("gale-custom-input")) {
-      _saveCustomGaleInput(e.target);
-      saveConfig();
-    }
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (e.target?.classList?.contains("gale-custom-input") && e.key === "Enter") {
-      e.target.blur();
-    }
-  });
-
-  // Input numérico de quantidade de gale (empate)
-  $("tieGaleCountInput")?.addEventListener("change", () => {
-    const v = Math.min(
-      10,
-      Math.max(0, parseInt($("tieGaleCountInput").value) || 0),
-    );
-    $("tieGaleCountInput").value = v;
-    setTieGaleMode(v);
-    saveConfig();
-  });
-  $("tieGaleCountInput")?.addEventListener("input", () => {
-    const v = Math.min(
-      10,
-      Math.max(0, parseInt($("tieGaleCountInput").value) || 0),
-    );
-    setTieGaleMode(v);
+  list.addEventListener("keydown", (e) => {
+    if (e.target.closest(".gale-level-input") && e.key === "Enter") e.target.blur();
   });
 }
 
-function normalizeGaleModeType(mode) {
-  return ["fixed", "double", "custom"].includes(mode) ? mode : "fixed";
-}
-
-function setGaleModeType(mode) {
-  state.galeModeType = normalizeGaleModeType(mode);
-  state.galeDouble = state.galeModeType === "double";
-  _updateGaleModeToggle("galeModeToggle", state.galeModeType);
-  _renderGalePreview();
-  _renderTieGalePreview();
-  _renderTieProtectPreview();
-}
-
-function _updateGaleModeToggle(toggleId, modeOrDouble) {
-  const toggle = $(toggleId);
-  if (!toggle) return;
-  const mode =
-    typeof modeOrDouble === "boolean"
-      ? modeOrDouble
-        ? "double"
-        : "fixed"
-      : normalizeGaleModeType(modeOrDouble);
-  toggle.querySelectorAll(".gmt-btn").forEach((btn) => {
-    const btnMode =
-      btn.dataset.mode || (btn.dataset.val === "true" ? "double" : "fixed");
-    btn.classList.toggle("gmt-active", btnMode === mode);
-  });
-}
-
-function setGaleMode(gale) {
-  state.galeMode = Math.min(10, Math.max(0, gale));
+function setGaleMode(gale, { keepInput = false } = {}) {
+  state.galeMode = Math.min(GALE_MAX, Math.max(0, gale));
+  // Listas só de empate usam o mesmo máximo de gale.
+  state.tieGaleMode = state.galeMode;
   state.galeStep = 0;
-  if ($("galeCountInput")) $("galeCountInput").value = state.galeMode;
-  _renderGalePreview();
-  _renderTieProtectPreview();
+  if (!keepInput && $("galeCountInput")) $("galeCountInput").value = state.galeMode;
+  renderGaleLevels();
 }
 
-function setTieGaleMode(gale) {
-  state.tieGaleMode = Math.min(10, Math.max(0, gale));
-  state.galeStep = 0;
-  if ($("tieGaleCountInput")) $("tieGaleCountInput").value = state.tieGaleMode;
-  _renderTieGalePreview();
+/** Valor do nível na tabela; passo acima do máximo usa a última linha. */
+function getLevelAmount(step, kind) {
+  _ensureGaleLevels();
+  const idx = Math.min(Math.max(0, step), state.galeMode);
+  const lv = state.galeLevels[idx] || state.galeLevels[0] || { color: 10, tie: 5 };
+  return kind === "tie" ? lv.tie : lv.color;
 }
 
-function _customValueMap(kind) {
-  if (kind === "tie") return state.tieGaleCustomValues;
-  if (kind === "tieProtect") return state.tieProtectCustomValues;
-  return state.galeCustomValues;
-}
-
-function _defaultCustomValue(step, base) {
-  return Math.max(snapTo5(base * Math.pow(2, step)), 5);
-}
-
-function _customAmountForStep(step, base, kind) {
-  if (step === 0) return base;
-  const map = _customValueMap(kind);
-  const value = Number(map?.[step]);
-  return value > 0 ? Math.max(snapTo5(value), 5) : _defaultCustomValue(step, base);
-}
-
-function _renderCustomGaleInputs(boxId, gridId, kind, count, base) {
-  const box = $(boxId);
-  const grid = $(gridId);
-  if (!box || !grid) return;
-
-  if (state.galeModeType !== "custom" || count <= 0) {
-    box.style.display = "none";
-    grid.innerHTML = "";
-    return;
+/**
+ * Config antiga (Fixo/Dobrar/Personalizado + valores soltos) vira a tabela.
+ * Coluna Empate: valor da proteção, ou o da entrada de empate se não havia proteção.
+ */
+function migrateLegacyGaleLevels(c) {
+  const mode = ["fixed", "double", "custom"].includes(c.galeModeType)
+    ? c.galeModeType
+    : c.galeDouble
+      ? "double"
+      : "fixed";
+  const stepAmount = (step, base, custom) => {
+    if (step === 0) return base;
+    if (mode === "custom") {
+      const v = Number(custom?.[step]);
+      return v > 0 ? Math.max(snapTo5(v), 5) : Math.max(snapTo5(base * 2 ** step), 5);
+    }
+    return mode === "double" ? Math.max(snapTo5(base * 2 ** step), 5) : base;
+  };
+  const colorBase = _levelValue(c.betAmount, 10);
+  const tieBase = _levelValue(c.tieProtection ? c.tieAmount : c.tieEntryAmount ?? c.tieAmount, 5);
+  const tieCustom = c.tieProtection ? c.tieProtectCustomValues : c.tieGaleCustomValues;
+  const max = Math.min(GALE_MAX, Math.max(0, Number(c.galeMode) || 0, Number(c.tieGaleMode) || 0));
+  const levels = [];
+  for (let i = 0; i <= max; i++) {
+    levels.push({
+      color: stepAmount(i, colorBase, c.galeCustomValues),
+      tie: stepAmount(i, tieBase, tieCustom),
+    });
   }
-
-  box.style.display = "block";
-  grid.innerHTML = Array.from({ length: count }, (_, index) => {
-    const step = index + 1;
-    const value = _customAmountForStep(step, base, kind);
-    return `
-      <label class="gale-custom-field">
-        <span>G${step}</span>
-        <input type="text" class="gale-custom-input" inputmode="numeric" data-kind="${kind}" data-step="${step}" data-raw-value="${value}" value="${formatCurrency(value)}" />
-      </label>
-    `;
-  }).join("");
-}
-
-function _saveCustomGaleInput(input) {
-  const kind = input.dataset.kind || "color";
-  const step = parseInt(input.dataset.step, 10);
-  if (!step) return;
-  const value = Math.max(snapTo5(input.dataset.rawValue || input.value), 5);
-  _customValueMap(kind)[step] = value;
-  input.dataset.rawValue = value;
-  input.value = formatCurrency(value);
-  _renderGalePreview();
-  _renderTieGalePreview();
-  _renderTieProtectPreview();
-}
-
-function _renderGalePreview() {
-  const preview = $("galePreview");
-  if (!preview) return;
-
-  const base = readCurrencyInput("betAmount");
-  const n = state.galeMode;
-  const mode = state.galeModeType;
-
-  if (n === 0) {
-    preview.innerHTML =
-      '<span class="gale-preview-none">Sem gale — uma tentativa.</span>';
-    _renderCustomGaleInputs("galeCustomBox", "galeCustomGrid", "color", 0, base);
-    return;
-  }
-
-  let html = '<div class="gale-preview-list">';
-  for (let i = 0; i <= n; i++) {
-    const val = getAmountForStep(i, base, mode, state.galeCustomValues);
-    const label = i === 0 ? "Entrada" : `${i}º Gale`;
-    html += `<span class="gale-preview-step"><span class="gpv-label">${label}</span><span class="gpv-value">${formatCurrency(val)}</span></span>`;
-  }
-  html += "</div>";
-  preview.innerHTML = html;
-  _renderCustomGaleInputs("galeCustomBox", "galeCustomGrid", "color", n, base);
-}
-
-function _renderTieGalePreview() {
-  const preview = $("tieGalePreview");
-  if (!preview) return;
-
-  const base = readCurrencyInput("tieEntryAmount");
-  const n = state.tieGaleMode;
-  const mode = state.galeModeType;
-
-  if (n === 0) {
-    preview.innerHTML =
-      '<span class="gale-preview-none">Sem gale — uma tentativa.</span>';
-    _renderCustomGaleInputs("tieGaleCustomBox", "tieGaleCustomGrid", "tie", 0, base);
-    return;
-  }
-
-  let html = '<div class="gale-preview-list">';
-  for (let i = 0; i <= n; i++) {
-    const val = getAmountForStep(i, base, mode, state.tieGaleCustomValues);
-    const label = i === 0 ? "Entrada" : `${i}º Gale`;
-    html += `<span class="gale-preview-step"><span class="gpv-label">${label}</span><span class="gpv-value">${formatCurrency(val)}</span></span>`;
-  }
-  html += "</div>";
-  preview.innerHTML = html;
-  _renderCustomGaleInputs("tieGaleCustomBox", "tieGaleCustomGrid", "tie", n, base);
-}
-
-function _renderTieProtectPreview() {
-  const preview = $("tieProtectPreview");
-  if (!preview) return;
-
-  if (!$("tieProtection")?.checked) {
-    _renderCustomGaleInputs("tieProtectCustomBox", "tieProtectCustomGrid", "tieProtect", 0, readCurrencyInput("tieAmount"));
-    return;
-  }
-
-  const base = readCurrencyInput("tieAmount");
-  const n = state.galeMode;
-  const mode = state.galeModeType;
-
-  if (n === 0) {
-    preview.innerHTML = mode === "double"
-      ? `<span class="gale-preview-none">Empate: ${formatCurrency(base)} (sem gales configurados).</span>`
-      : '<span class="gale-preview-none">Mesmo valor em todos os gales.</span>';
-    _renderCustomGaleInputs("tieProtectCustomBox", "tieProtectCustomGrid", "tieProtect", 0, base);
-    return;
-  }
-
-  let html = '<div class="gale-preview-list">';
-  for (let i = 0; i <= n; i++) {
-    const val = getAmountForStep(i, base, mode, state.tieProtectCustomValues);
-    const label = i === 0 ? "Entrada" : `${i}º Gale`;
-    html += `<span class="gale-preview-step"><span class="gpv-label">${label}</span><span class="gpv-value">${formatCurrency(val)}</span></span>`;
-  }
-  html += "</div>";
-  preview.innerHTML = html;
-  _renderCustomGaleInputs("tieProtectCustomBox", "tieProtectCustomGrid", "tieProtect", n, base);
+  return { levels, max: Math.min(GALE_MAX, Math.max(0, Number(c.galeMode) || 0)) };
 }
 
 /* ========== Máscara de valor — aceita qualquer inteiro >= 1 ========== */
@@ -744,10 +617,6 @@ function initCurrencyInputs() {
     input.addEventListener("blur", () => {
       applyCurrencyMask(input);
       saveConfig();
-      if (typeof _renderGalePreview === "function") _renderGalePreview();
-      if (typeof _renderTieGalePreview === "function") _renderTieGalePreview();
-      if (typeof _renderTieProtectPreview === "function")
-        _renderTieProtectPreview();
     });
 
     input.addEventListener("keydown", (e) => {
@@ -759,45 +628,16 @@ function initCurrencyInputs() {
   });
 }
 
-/* ========== Schedule Type → mostrar/ocultar cards de apostas ========== */
+/* ========== Lista carregada → aviso na aba Apostas ========== */
 function onScheduleTypeChanged(type) {
   const noList = $("betNoList");
-  const cardColor = $("cardColorBet");
-  const cardTie = $("cardTieBet");
-  const cardDoubleGlobal = $("cardGaleDoubleGlobal");
-  const galeCountRow = $("galeCountRow");
-  const tieGaleCountRow = $("tieGaleCountRow");
-
-  const showColor = type === "color" || type === "mixed";
-  const showTie = type === "tie" || type === "mixed";
-  const showNone = type === "none";
-  const showDouble = showColor || showTie;
-
-  if (noList) noList.style.display = showNone ? "block" : "none";
-  if (cardColor) cardColor.style.display = showColor ? "block" : "none";
-  if (cardTie) cardTie.style.display = showTie ? "block" : "none";
-  if (cardDoubleGlobal)
-    cardDoubleGlobal.style.display = showDouble ? "block" : "none";
-  if (galeCountRow) galeCountRow.style.display = showColor ? "block" : "none";
-  if (tieGaleCountRow)
-    tieGaleCountRow.style.display = showTie ? "block" : "none";
+  if (noList) noList.style.display = type === "none" ? "block" : "none";
 }
 
 /* ========== Gale Step Label ========== */
 function galeStepLabel(step) {
   if (step === 0) return "Entrada";
   return `${step}º Gale`;
-}
-
-/* ========== Calcula valor de aposta para o passo atual ========== */
-function getAmountForStep(step, base, mode = state.galeModeType, customValues = {}) {
-  if (step === 0) return base;
-  if (mode === "custom") {
-    const value = Number(customValues?.[step]);
-    return value > 0 ? Math.max(snapTo5(value), 5) : _defaultCustomValue(step, base);
-  }
-  if (mode !== "double") return base;
-  return Math.max(snapTo5(base * Math.pow(2, step)), 5);
 }
 
 /* ========== Ciclo: após red, próxima SG = último valor apostado x2; green volta ao normal ========== */
@@ -831,25 +671,15 @@ function renderCycleHint() {
   hint.textContent =
     state.cycleMult === 1
       ? "Ativo — próxima entrada no valor normal."
-      : `Ativo — próxima SG ${formatCurrency(applyCycle(readCurrencyInput("betAmount")))} (x${state.cycleMult}).`;
+      : `Ativo — próxima SG ${formatCurrency(applyCycle(getLevelAmount(0, "color")))} (x${state.cycleMult}).`;
 }
 
 function getBetAmountForStep(step, isTie) {
-  const baseId = isTie ? "tieEntryAmount" : "betAmount";
-  const base = readCurrencyInput(baseId);
-  const customValues = isTie ? state.tieGaleCustomValues : state.galeCustomValues;
-  return applyCycle(getAmountForStep(step, base, state.galeModeType, customValues));
+  return applyCycle(getLevelAmount(step, isTie ? "tie" : "color"));
 }
 
 function getTieProtectAmountForStep(step) {
-  return applyCycle(
-    getAmountForStep(
-      step,
-      readCurrencyInput("tieAmount"),
-      state.galeModeType,
-      state.tieProtectCustomValues,
-    ),
-  );
+  return applyCycle(getLevelAmount(step, "tie"));
 }
 
 /* ========== Main Controls ========== */
@@ -858,7 +688,10 @@ function bindMainControls() {
     if (state.autoMode) toggleAutoMode();
     else void startAutomationChecked();
   });
-  $("bettingHouse")?.addEventListener("change", saveConfig);
+  $("bettingHouse")?.addEventListener("change", () => {
+    state.bettingHouseId = $("bettingHouse").value;
+    saveConfig();
+  });
   $("chipProfile")?.addEventListener("change", saveConfig);
   $("fullscreenOnLoad")?.addEventListener("change", saveConfig);
 }
@@ -989,6 +822,70 @@ function notifyBalanceAfterSettle() {
 }
 
 const NOTIFY_SIDE = { A: "player", V: "banker", T: "tie" };
+
+/* ========== Casas de aposta (cadastro do admin no painel) ========== */
+let _configLoaded = false;
+
+function _validHouses(list) {
+  return Array.isArray(list)
+    ? list.filter((h) => h && typeof h.id === "string" && h.id && typeof h.nome === "string" && /^https:\/\//i.test(h.url || ""))
+    : [];
+}
+
+function renderHouseOptions() {
+  const select = $("bettingHouse");
+  if (!select) return;
+  const houses = _validHouses(state.bettingHouses);
+  if (houses.length) {
+    select.innerHTML = "";
+    for (const h of houses) {
+      const opt = document.createElement("option");
+      opt.value = h.id;
+      opt.textContent = h.nome;
+      select.appendChild(opt);
+    }
+  }
+  const ids = Array.from(select.options).map((o) => o.value);
+  if (ids.includes(state.bettingHouseId)) {
+    select.value = state.bettingHouseId;
+  } else if (ids.length) {
+    // Casa removida ou desligada no painel: passa para a primeira da lista.
+    const hadChoice = !!state.bettingHouseId;
+    state.bettingHouseId = ids[0];
+    select.value = ids[0];
+    // Só grava depois que a config foi lida, para não sobrescrever com o padrão.
+    if (hadChoice && houses.length && _configLoaded) saveConfig();
+  }
+}
+
+function loadHousesFromStorage() {
+  chrome.storage.local.get("bettingHouses", ({ bettingHouses }) => {
+    if (_validHouses(bettingHouses).length) {
+      state.bettingHouses = bettingHouses;
+      renderHouseOptions();
+    }
+  });
+}
+
+/** Busca as casas ativas no painel e guarda para o background abrir a casa certa. */
+async function fetchBettingHouses() {
+  if (!BacListAuth.isLoggedIn()) return;
+  try {
+    const data = await BacListAuth.api("/api/listas/casas");
+    const houses = _validHouses(data?.casas).map((h) => ({
+      id: h.id,
+      nome: h.nome,
+      url: h.url,
+      clickPlay: !!h.clickPlay,
+    }));
+    if (!houses.length) return;
+    state.bettingHouses = houses;
+    await chrome.storage.local.set({ bettingHouses: houses });
+    renderHouseOptions();
+  } catch (err) {
+    console.warn("[BacList] Casas de aposta: usando a lista salva", err?.message || err);
+  }
+}
 
 /* ========== Versão da extensão (igual ao Automático) ========== */
 const RELEASE_CHECK_MS = 10 * 60 * 1000;
@@ -1324,7 +1221,7 @@ function _processPendingBetResult(road, resultCor, info) {
   _notifyStats.losses++;
   if (!_pendingBet.tieSeco && isCycleEnabled()) {
     // Próxima SG = último valor apostado nesta sequência x2.
-    const base = readCurrencyInput(isTieEntry ? "tieEntryAmount" : "betAmount");
+    const base = getLevelAmount(0, isTieEntry ? "tie" : "color");
     const lastStake = _pendingBet.mainAmount || 0;
     if (base > 0 && lastStake > 0) setCycleMult((lastStake * 2) / base);
   }
@@ -1333,7 +1230,7 @@ function _processPendingBetResult(road, resultCor, info) {
     Strategies.signalLoss(galeStepAtBet + 1);
   }
   const cycleMsg = isCycleEnabled() && !_pendingBet.tieSeco
-    ? ` — ciclo: próxima SG ${formatCurrency(applyCycle(readCurrencyInput(isTieEntry ? "tieEntryAmount" : "betAmount")))}`
+    ? ` — ciclo: próxima SG ${formatCurrency(applyCycle(getLevelAmount(0, isTieEntry ? "tie" : "color")))}`
     : "";
   showToast(
     (unprotectedTie
@@ -1421,28 +1318,17 @@ async function executeBet(colorTarget, options = {}) {
       action: "getActiveTabId",
     });
 
-    let result;
-    const isCustomGale = isGale && state.galeModeType === "custom";
-    if (isGale && !isCustomGale) {
-      // Gale fixo/dobrar: repeat-button (+ double-button se modo dobrar ativo)
-      result = await chrome.runtime.sendMessage({
-        action: "repeatBetIframe",
-        tabId: tabId || undefined,
-        doDouble: state.galeDouble,
-      });
-    } else {
-      // 1ª entrada ou gale personalizado: fluxo normal com fichas e spot
-      result = await chrome.runtime.sendMessage({
-        action: "placeBetIframe",
-        tabId: tabId || undefined,
-        mainAmount,
-        tieAmount,
-        target: spot,
-        tieProtection: tieProtect,
-        selectors,
-        waitForChips: tieSeco,
-      });
-    }
+    // Entrada e gales: fichas e spot com o valor da tabela de gale.
+    const result = await chrome.runtime.sendMessage({
+      action: "placeBetIframe",
+      tabId: tabId || undefined,
+      mainAmount,
+      tieAmount,
+      target: spot,
+      tieProtection: tieProtect,
+      selectors,
+      waitForChips: tieSeco,
+    });
 
     if (result?.success) {
       const road = await _fetchFreshRoadHistory();
@@ -1481,14 +1367,8 @@ async function executeBet(colorTarget, options = {}) {
       });
 
       const names = { player: "Jogador", banker: "Casa", tie: "Empate" };
-      const galeMethodLabel =
-        state.galeModeType === "custom"
-          ? " (personalizado)"
-          : state.galeDouble
-            ? " (dobrar)"
-            : " (repetir)";
       showToast(
-        `${galeStepLabel(galeStep)}${isGale ? galeMethodLabel : ""}: ${formatCurrency(mainAmount)} em ${names[target] || target}` +
+        `${galeStepLabel(galeStep)}: ${formatCurrency(mainAmount)} em ${names[target] || target}` +
           (tieProtect ? ` + ${formatCurrency(tieAmount)} Emp.` : ""),
         "success",
       );
@@ -2027,7 +1907,6 @@ function bindConfigControls() {
     saveConfig();
   });
 
-  $("tieAmount")?.addEventListener("change", saveConfig);
   $("tieDuploSeco")?.addEventListener("change", saveConfig);
   $("cycleEnabled")?.addEventListener("change", () => {
     setCycleMult(1);
@@ -2145,16 +2024,8 @@ function renderHistory() {
 function saveConfig() {
   const config = {
     galeMode: state.galeMode,
-    galeDouble: state.galeDouble,
-    galeModeType: state.galeModeType,
-    galeCustomValues: state.galeCustomValues,
-    tieGaleCustomValues: state.tieGaleCustomValues,
-    tieProtectCustomValues: state.tieProtectCustomValues,
-    tieGaleMode: state.tieGaleMode,
-    betAmount: readCurrencyInput("betAmount"),
-    tieEntryAmount: readCurrencyInput("tieEntryAmount"),
+    galeLevels: state.galeLevels.slice(0, state.galeMode + 1),
     tieProtection: $("tieProtection")?.checked || false,
-    tieAmount: readCurrencyInput("tieAmount"),
     selectorPlayer: $("selectorPlayer")?.value || "",
     selectorTie: $("selectorTie")?.value || "",
     selectorBanker: $("selectorBanker")?.value || "",
@@ -2168,7 +2039,7 @@ function saveConfig() {
     entryTimingMode: getEntryTimingMode(),
     entryLeadSeconds: getEntryLeadSeconds(),
     patternGuard: readPatternGuardConfig(),
-    bettingHouse: $("bettingHouse")?.value || "1win",
+    bettingHouse: $("bettingHouse")?.value || state.bettingHouseId || "1win",
     chipProfile: $("chipProfile")?.value || "bacbo_br",
     fullscreenOnLoad: $("fullscreenOnLoad")?.checked !== false,
     tieDuploSeco: $("tieDuploSeco")?.checked || false,
@@ -2184,38 +2055,32 @@ function saveConfig() {
 function loadConfig() {
   chrome.storage.local.get("bacboConfig", ({ bacboConfig }) => {
     if (!bacboConfig) {
+      _configLoaded = true;
+      setGaleMode(state.galeMode);
+      renderHouseOptions();
       updateEntryLeadVisibility();
       syncEntryTimingStrategy();
       return;
     }
     const c = bacboConfig;
+    let migratedGale = false;
 
-    state.galeCustomValues = c.galeCustomValues || {};
-    state.tieGaleCustomValues = c.tieGaleCustomValues || {};
-    state.tieProtectCustomValues = c.tieProtectCustomValues || {};
-    setGaleMode(c.galeMode ?? 0);
-
-    setTieGaleMode(c.tieGaleMode ?? 0);
-    setGaleModeType(c.galeModeType || ((c.galeDouble ?? c.tieGaleDouble) ? "double" : "fixed"));
-
-    const setVal = (id, v) => {
-      const el = $(id);
-      if (!el || v == null) return;
-      const n = snapTo5(parseInt(v, 10) || 5);
-      el.value = formatCurrency(n);
-      el.dataset.rawValue = n;
-    };
-    setVal("betAmount", c.betAmount);
-    setVal("tieEntryAmount", c.tieEntryAmount ?? 5);
-    setVal("tieAmount", c.tieAmount);
+    if (Array.isArray(c.galeLevels) && c.galeLevels.length) {
+      state.galeLevels = c.galeLevels.map((lv) => ({ color: lv?.color, tie: lv?.tie }));
+      setGaleMode(c.galeMode ?? 0);
+    } else {
+      const migrated = migrateLegacyGaleLevels(c);
+      state.galeLevels = migrated.levels;
+      setGaleMode(migrated.max);
+      migratedGale = true;
+    }
 
     if (c.tieProtection) {
       const cb = $("tieProtection");
       if (cb) cb.checked = true;
       state.tieProtection = true;
-      const row = $("tieValueRow");
-      if (row) row.style.display = "flex";
     }
+    renderGaleLevels();
 
     if (c.selectorPlayer) $("selectorPlayer").value = c.selectorPlayer;
     if (c.selectorTie) $("selectorTie").value = c.selectorTie;
@@ -2237,9 +2102,8 @@ function loadConfig() {
     if ($("entryLeadSeconds")) {
       $("entryLeadSeconds").value = clampEntryLeadSeconds(c.entryLeadSeconds ?? 1);
     }
-    if ($("bettingHouse") && c.bettingHouse) {
-      $("bettingHouse").value = c.bettingHouse;
-    }
+    if (c.bettingHouse) state.bettingHouseId = String(c.bettingHouse);
+    renderHouseOptions();
     if ($("chipProfile")) {
       $("chipProfile").value =
         c.chipProfile === "bacbo_en" ? "bacbo_en" : "bacbo_br";
@@ -2255,10 +2119,11 @@ function loadConfig() {
     updateEntryLeadVisibility();
     syncEntryTimingStrategy();
 
-    _renderGalePreview();
-    _renderTieGalePreview();
-    _renderTieProtectPreview();
     updateStatusLabel();
+    _configLoaded = true;
+    renderHouseOptions();
+    // Config antiga convertida para a tabela: grava depois de carregar o resto.
+    if (migratedGale) saveConfig();
   });
 }
 

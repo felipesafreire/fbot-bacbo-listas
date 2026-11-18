@@ -113,12 +113,13 @@
         </div>
         <div class="live-history-balls" id="liveHistoryBalls">
           <span class="live-history-empty"
-            >Inicie o monitoramento na aba Estratégias</span
+            >Inicie o monitoramento na aba Lista</span
           >
         </div>
       </div>
       <label class="house-select">
         <span>Casa de aposta</span>
+        <!-- Opções vêm do cadastro de casas no painel (/api/listas/casas) -->
         <select id="bettingHouse" class="field-input">
           <option value="1win">1Win</option>
           <option value="pixnabanca">Pix na Banca</option>
@@ -136,7 +137,7 @@
       <div class="toggle-row">
         <label class="toggle-label">
           Tela inteira ao carregar
-          <small class="toggle-hint">Qualquer casa, assim que a mesa abrir</small>
+          <small class="toggle-hint">Assim que a mesa abrir. Não funciona em todas as casas: em algumas o site não deixa a mesa entrar em tela inteira.</small>
         </label>
         <label class="switch">
           <input type="checkbox" id="fullscreenOnLoad" checked />
@@ -155,7 +156,7 @@
         <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-dice"></use></svg> Apostas
       </button>
       <button class="tab-btn" data-tab="estrategias">
-        <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-brain"></use></svg> Estratégias
+        <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-list-check"></use></svg> Lista
       </button>
       <button class="tab-btn" data-tab="config">
         <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-settings"></use></svg> Config
@@ -167,43 +168,77 @@
 
     <!-- Tab: Apostas -->
     <div class="tab-content active" id="tab-apostas">
+      <section class="gamble-card">
+        <h3 class="card-title">
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-chart"></use></svg> Resumo da sessão
+        </h3>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-value text-green" id="statWins">0</span>
+            <span class="stat-label">Ganhos</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value text-red" id="statLosses">0</span>
+            <span class="stat-label">Perdas</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="statTotal">0</span>
+            <span class="stat-label">Total</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value text-green" id="statBalance">R$ 0</span>
+            <span class="stat-label">Saldo</span>
+          </div>
+        </div>
+        <div class="stat-banca" title="Saldo da conta lido na mesa">
+          <span class="stat-banca-label">Banca</span>
+          <span class="stat-banca-value stat-value--muted" id="statBanca">Sem mesa</span>
+          <span class="stat-banca-pnl" id="statBancaPnl" hidden></span>
+        </div>
+      </section>
+
       <!-- Aviso quando nenhuma lista está carregada -->
       <div class="bet-no-list" id="betNoList">
         <div class="empty-state">
           <svg class="ic ic-2x" aria-hidden="true" focusable="false"><use href="#fbot-i-list-check"></use></svg>
           <p>
-            Configure a lista de entradas na aba
-            <strong>Estratégias</strong> para ver as opções de aposta.
+            Cole a lista de entradas na aba <strong>Lista</strong> para a
+            automação saber quando entrar.
           </p>
         </div>
       </div>
 
-      <!-- Modo Martingale global (Fixo / Dobrar) — válido para cores e empate -->
-      <section class="gamble-card" id="cardGaleDoubleGlobal">
+      <!-- Gale — mesma ideia do Bac Bo Automático: um valor por nível -->
+      <section class="gamble-card" id="cardGale">
         <h3 class="card-title">
-          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-layers"></use></svg> Modo Martingale
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-layers"></use></svg> Gale
         </h3>
-        <div class="gale-mode-toggle" id="galeModeToggle">
-          <button
-            type="button"
-            class="gmt-btn gmt-active"
-            data-mode="fixed"
-            data-val="false"
-          >
-            Fixo
-          </button>
-          <button
-            type="button"
-            class="gmt-btn"
-            data-mode="double"
-            data-val="true"
-          >
-            Dobrar
-          </button>
-          <button type="button" class="gmt-btn" data-mode="custom">
-            Personalizado
-          </button>
+        <div class="field-group">
+          <label class="field-label" for="galeCountInput">Máx. gale</label>
+          <input type="number" id="galeCountInput" class="field-input" min="0" max="10" value="1" />
+          <small class="field-help">0 = só a entrada. Com 2, configure Entrada, G1 e G2 abaixo.</small>
         </div>
+
+        <div class="gale-levels">
+          <div class="gale-levels-header">
+            <span></span>
+            <span>Cor</span>
+            <span>Empate</span>
+          </div>
+          <div id="galeLevelsList"></div>
+        </div>
+
+        <div class="toggle-row">
+          <label class="toggle-label" for="tieProtection">
+            Proteger empate
+            <small class="toggle-hint">Na entrada de cor, aposta também no empate com o valor da coluna Empate. Listas só de empate (🟠) usam a coluna Empate como entrada.</small>
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="tieProtection" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
         <div class="toggle-row">
           <label class="toggle-label" for="cycleEnabled">
             Ciclo nas listas
@@ -216,145 +251,6 @@
             <span class="slider"></span>
           </label>
         </div>
-        <div class="gale-count-row" id="galeCountRow" style="display: none">
-          <label class="field-label">Qtd. Gales — Cores (0–10)</label>
-          <input
-            type="number"
-            id="galeCountInput"
-            class="field-input"
-            min="0"
-            max="10"
-            value="0"
-          />
-        </div>
-        <div class="gale-count-row" id="tieGaleCountRow" style="display: none">
-          <label class="field-label">Qtd. Gales — Empate (0–10)</label>
-          <input
-            type="number"
-            id="tieGaleCountInput"
-            class="field-input"
-            min="0"
-            max="10"
-            value="0"
-          />
-        </div>
-      </section>
-
-      <!-- Entradas + Proteção no Empate (Cores) — card unificado -->
-      <section class="gamble-card" id="cardColorBet">
-        <h3 class="card-title">
-          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-coins"></use></svg> Entradas &amp; Proteção (Cores)
-        </h3>
-
-        <!-- Bloco: valor de entrada principal -->
-        <div class="bet-section">
-          <div class="field-group-inline">
-            <label class="field-label">Valor de Entrada (R$)</label>
-            <div class="input-group">
-              <span class="input-prefix">R$</span>
-              <input
-                type="text"
-                id="betAmount"
-                class="field-input currency-input"
-                inputmode="numeric"
-                value="10"
-                placeholder="10"
-              />
-            </div>
-          </div>
-
-          <div class="gale-preview-box" id="galePreview">
-            <span class="gale-preview-none">Sem gale — uma tentativa.</span>
-          </div>
-          <div class="gale-custom-box" id="galeCustomBox" style="display: none">
-            <div class="gale-custom-title">Valores dos gales de cores</div>
-            <div class="gale-custom-grid" id="galeCustomGrid"></div>
-          </div>
-        </div>
-
-        <!-- Bloco: proteção no empate (opcional) -->
-        <div class="bet-section bet-section-protect">
-          <div class="bet-subhead">
-            <span class="bet-subhead-title">
-              <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-shield"></use></svg> Proteção no Empate
-            </span>
-            <span class="badge-optional">Opcional</span>
-          </div>
-
-          <div class="toggle-row">
-            <label class="toggle-label">
-              Apostar também no empate
-              <small class="toggle-hint"
-                >Cobertura simultânea Empate + Alvo principal</small
-              >
-            </label>
-            <label class="switch">
-              <input type="checkbox" id="tieProtection" />
-              <span class="slider"></span>
-            </label>
-          </div>
-
-          <div class="tie-value-row" id="tieValueRow" style="display: none">
-            <div class="field-group-inline">
-              <label class="field-label">Valor no Empate (R$)</label>
-              <div class="input-group">
-                <span class="input-prefix">R$</span>
-                <input
-                  type="text"
-                  id="tieAmount"
-                  class="field-input currency-input"
-                  inputmode="numeric"
-                  value="5"
-                  placeholder="R$ 5"
-                />
-              </div>
-            </div>
-
-            <div class="gale-preview-box" id="tieProtectPreview">
-              <span class="gale-preview-none"
-                >Mesmo valor em todos os gales.</span
-              >
-            </div>
-            <div
-              class="gale-custom-box"
-              id="tieProtectCustomBox"
-              style="display: none"
-            >
-              <div class="gale-custom-title">Valores da proteção no empate</div>
-              <div class="gale-custom-grid" id="tieProtectCustomGrid"></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Gale / Empate — só para listas de empate -->
-      <section class="card card-bet-tie" id="cardTieBet" style="display: none">
-        <h3 class="card-title">
-          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-coins"></use></svg> Entradas &amp; Martingale (Empate)
-        </h3>
-
-        <div class="field-group-inline">
-          <label class="field-label">Valor de Entrada (R$)</label>
-          <div class="input-group">
-            <span class="input-prefix">R$</span>
-            <input
-              type="text"
-              id="tieEntryAmount"
-              class="field-input currency-input"
-              inputmode="numeric"
-              value="5"
-              placeholder="5"
-            />
-          </div>
-        </div>
-
-        <div class="gale-preview-box" id="tieGalePreview">
-          <span class="gale-preview-none">Sem gale — uma tentativa.</span>
-        </div>
-        <div class="gale-custom-box" id="tieGaleCustomBox" style="display: none">
-          <div class="gale-custom-title">Valores dos gales de empate</div>
-          <div class="gale-custom-grid" id="tieGaleCustomGrid"></div>
-        </div>
       </section>
 
       <!-- Feedback de última aposta -->
@@ -366,7 +262,7 @@
       </div>
     </div>
 
-    <!-- Tab: Estratégias -->
+    <!-- Tab: Lista -->
     <div class="tab-content" id="tab-estrategias">
       <!-- Lista de horários de entrada -->
       <section class="gamble-card" id="cardSchedule">
@@ -419,7 +315,7 @@
         </div>
       </section>
 
-      <!-- Log de sinais ao vivo (mantido no tab Estratégias para consulta rápida) -->
+      <!-- Log de sinais ao vivo (mantido na aba Lista para consulta rápida) -->
       <section class="gamble-card">
         <h3 class="card-title">
           <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-radio"></use></svg> Sinais Disparados
@@ -716,34 +612,6 @@
         </div>
       </section>
 
-      <section class="gamble-card">
-        <h3 class="card-title">
-          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-chart"></use></svg> Resumo da Sessão
-        </h3>
-        <div class="stats-grid">
-          <div class="stat-item">
-            <span class="stat-value text-green" id="statWins">0</span>
-            <span class="stat-label">Ganhos</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value text-red" id="statLosses">0</span>
-            <span class="stat-label">Perdas</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value" id="statTotal">0</span>
-            <span class="stat-label">Total</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value text-green" id="statBalance">R$ 0</span>
-            <span class="stat-label">Saldo</span>
-          </div>
-        </div>
-        <div class="stat-banca" title="Saldo da conta lido na mesa">
-          <span class="stat-banca-label">Banca</span>
-          <span class="stat-banca-value stat-value--muted" id="statBanca">Sem mesa</span>
-          <span class="stat-banca-pnl" id="statBancaPnl" hidden></span>
-        </div>
-      </section>
 
       <section class="gamble-card">
         <h3 class="card-title"><svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-list"></use></svg> Últimas Apostas</h3>

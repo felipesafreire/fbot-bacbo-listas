@@ -2819,3 +2819,56 @@ h1, h2, h3, .card-title { font-family: var(--font-display); letter-spacing: -0.0
   opacity: 0.45;
   cursor: default;
 }
+
+/* Tabela de gale (igual ao Bac Bo Automático): Entrada, G1, G2… × Cor / Empate */
+.gale-levels {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+
+.gale-levels-header,
+.gale-level-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.gale-levels-header span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.gale-level-tag {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.gale-level-input {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  padding: 7px 10px;
+  min-width: 0;
+}
+
+/* Proteção desligada: a coluna Empate só vale para listas de empate (🟠) */
+.gale-level-input--off {
+  opacity: 0.6;
+}
+
+.gale-level-input--off:focus {
+  opacity: 1;
+}
+
+/* Resumo da sessão na aba Apostas */
+#tab-apostas > .gamble-card:first-child {
+  margin-bottom: 12px;
+}
