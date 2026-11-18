@@ -159,7 +159,7 @@
         <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-list-check"></use></svg> Lista
       </button>
       <button class="tab-btn" data-tab="config">
-        <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-settings"></use></svg> Config
+        <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-settings"></use></svg> Configuração
       </button>
       <button class="tab-btn" data-tab="historico">
         <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-history"></use></svg> Histórico
@@ -207,51 +207,6 @@
           </p>
         </div>
       </div>
-
-      <!-- Gale — mesma ideia do Bac Bo Automático: um valor por nível -->
-      <section class="gamble-card" id="cardGale">
-        <h3 class="card-title">
-          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-layers"></use></svg> Gale
-        </h3>
-        <div class="field-group">
-          <label class="field-label" for="galeCountInput">Máx. gale</label>
-          <input type="number" id="galeCountInput" class="field-input" min="0" max="10" value="1" />
-          <small class="field-help">0 = só a entrada. Com 2, configure Entrada, G1 e G2 abaixo.</small>
-        </div>
-
-        <div class="gale-levels">
-          <div class="gale-levels-header">
-            <span></span>
-            <span>Cor</span>
-            <span>Empate</span>
-          </div>
-          <div id="galeLevelsList"></div>
-        </div>
-
-        <div class="toggle-row">
-          <label class="toggle-label" for="tieProtection">
-            Proteger empate
-            <small class="toggle-hint">Na entrada de cor, aposta também no empate com o valor da coluna Empate. Listas só de empate (🟠) usam a coluna Empate como entrada.</small>
-          </label>
-          <label class="switch">
-            <input type="checkbox" id="tieProtection" />
-            <span class="slider"></span>
-          </label>
-        </div>
-
-        <div class="toggle-row">
-          <label class="toggle-label" for="cycleEnabled">
-            Ciclo nas listas
-            <small class="toggle-hint" id="cycleHint"
-              >Após red, a próxima SG é o dobro do último valor apostado; gales e proteção acompanham. Volta ao normal no green.</small
-            >
-          </label>
-          <label class="switch">
-            <input type="checkbox" id="cycleEnabled" />
-            <span class="slider"></span>
-          </label>
-        </div>
-      </section>
 
       <!-- Feedback de última aposta -->
       <div class="last-bet-info" id="lastBetInfo" style="display: none">
@@ -341,6 +296,51 @@
       <input type="hidden" id="selectorBanker" />
       <input type="hidden" id="selectorAmount" />
       <input type="hidden" id="selectorConfirm" />
+
+      <!-- Gale — mesma ideia do Bac Bo Automático: um valor por nível -->
+      <section class="gamble-card" id="cardGale">
+        <h3 class="card-title">
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-layers"></use></svg> Gale
+        </h3>
+        <div class="field-group">
+          <label class="field-label" for="galeCountInput">Máx. gale</label>
+          <input type="number" id="galeCountInput" class="field-input" min="0" max="10" value="1" />
+          <small class="field-help">0 = só a entrada. Com 2, configure Entrada, G1 e G2 abaixo.</small>
+        </div>
+
+        <div class="gale-levels">
+          <div class="gale-levels-header">
+            <span></span>
+            <span>Cor</span>
+            <span>Empate</span>
+          </div>
+          <div id="galeLevelsList"></div>
+        </div>
+
+        <div class="toggle-row">
+          <label class="toggle-label" for="tieProtection">
+            Proteger empate
+            <small class="toggle-hint">Na entrada de cor, aposta também no empate com o valor da coluna Empate. Listas só de empate (🟠) usam a coluna Empate como entrada.</small>
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="tieProtection" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="toggle-row">
+          <label class="toggle-label" for="cycleEnabled">
+            Ciclo nas listas
+            <small class="toggle-hint" id="cycleHint"
+              >Após red, a próxima SG é o dobro do último valor apostado; gales e proteção acompanham. Volta ao normal no green.</small
+            >
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="cycleEnabled" />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </section>
 
       <section class="gamble-card">
         <h3 class="card-title">
