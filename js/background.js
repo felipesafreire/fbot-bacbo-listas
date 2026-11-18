@@ -1936,13 +1936,6 @@ const CHIP_PROFILES = {
     chipStep: 2.5,
     denominations: [2.5, 5, 25, 125, 500],
   },
-  /* Reserva quando não dá para ler as fichas na mesa: só as que existem nas duas. */
-  common: {
-    id: "common",
-    minChip: 5,
-    chipStep: 5,
-    denominations: [5, 25, 125, 500],
-  },
 };
 const CHIP_DENOMINATIONS = CHIP_PROFILES.bacbo_en.denominations;
 
@@ -2120,9 +2113,17 @@ function _parseBrlAmount(raw) {
   return Number.isFinite(n) ? n : null;
 }
 
-/* As fichas vêm da mesa (_readLiveChipProfile); o usuário não escolhe. */
+/* Jogo escolhido na Configuração (igual ao Automático). As fichas lidas na mesa
+   têm prioridade (_readLiveChipProfile); este perfil é a reserva. */
 async function _getChipProfile() {
-  return CHIP_PROFILES.common;
+  try {
+    const data = await chrome.storage.local.get("bacboConfig");
+    const c = data?.bacboConfig || {};
+    const id = CHIP_PROFILES[c.gameId] ? c.gameId : c.chipProfile === "bacbo_en" ? "bacbo_en" : "bacbo_br";
+    return CHIP_PROFILES[id];
+  } catch (_) {
+    return CHIP_PROFILES.bacbo_br;
+  }
 }
 
 async function _readLiveChipProfile(tabId) {

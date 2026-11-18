@@ -3052,3 +3052,69 @@ textarea.field-input {
 .config-save-bar .btn-execute {
   width: 100%;
 }
+
+/* Jogo (igual ao Bac Bo Automático) */
+.game-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.game-card {
+  display: block;
+  cursor: pointer;
+}
+
+.game-card input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.game-card-body {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--fill);
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+}
+
+.game-card:hover .game-card-body {
+  border-color: var(--line-strong);
+}
+
+.game-card input:checked + .game-card-body {
+  border-color: var(--accent);
+  background: var(--accent-muted);
+  box-shadow: 0 0 0 1px rgba(47, 140, 255, 0.25);
+}
+
+.game-card input:focus-visible + .game-card-body {
+  box-shadow: var(--focus);
+}
+
+.game-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.game-card-head .ic {
+  color: var(--accent-light);
+  width: 18px;
+}
+
+.game-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.game-card-meta {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--text-muted);
+}

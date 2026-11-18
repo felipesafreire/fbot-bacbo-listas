@@ -26,6 +26,7 @@ const state = {
   cycleMult: 1, // ciclo: após red, próxima SG = último valor apostado x2 (multiplicador sobre a base); green volta a 1
   patternGuard: PatternGuard.normalizeConfig(PatternGuard.DEFAULT_CONFIG),
   bettingHouseId: "1win",
+  gameId: "bacbo_br", // bacbo_en | bacbo_br: define as fichas
   scheduleType: "none", // none | color | tie | mixed (lista carregada)
   bettingHouses: null, // cadastro do painel; null = casas padrão do HTML
 };
@@ -122,6 +123,8 @@ function initApp() {
   bindTieProtection();
   initCurrencyInputs();
   bindGaleSelector();
+  renderGamePicker();
+  bindGamePicker();
   bindMainControls();
   bindConfigControls();
   bindPatternGuardControls();
@@ -371,8 +374,8 @@ function bindTargetButtons() {
 const GALE_MAX = 10;
 
 function _levelValue(raw, fallback) {
-  const n = parseInt(String(raw ?? "").replace(/\D/g, ""), 10);
-  return Number.isFinite(n) && n > 0 ? Math.max(snapTo5(n), 5) : fallback;
+  const n = typeof raw === "number" ? raw : parseMoney(raw);
+  return Number.isFinite(n) && n > 0 ? snapChip(n) : fallback;
 }
 
 /** Garante uma linha por nível (Entrada + gales). Linha nova: cor dobra, empate repete. */
@@ -383,7 +386,7 @@ function _ensureGaleLevels() {
     const prev = out[i - 1] || { color: 10, tie: 5 };
     const cur = levels[i] || {};
     out.push({
-      color: _levelValue(cur.color, i === 0 ? prev.color : Math.max(snapTo5(prev.color * 2), 5)),
+      color: _levelValue(cur.color, i === 0 ? prev.color : snapChip(prev.color * 2)),
       tie: _levelValue(cur.tie, prev.tie),
     });
   }
@@ -446,15 +449,15 @@ function bindGaleSelector() {
   list.addEventListener("focusin", (e) => {
     const input = e.target.closest(".gale-level-input");
     if (!input) return;
-    input.value = input.dataset.rawValue || "";
+    input.value = moneyInputText(input.dataset.rawValue || "");
     input.select();
   });
   list.addEventListener("input", (e) => {
     const input = e.target.closest(".gale-level-input");
     if (!input) return;
-    const digits = (input.value || "").replace(/\D/g, "");
-    input.value = digits;
-    input.dataset.rawValue = digits;
+    const typed = (input.value || "").replace(/[^\d,]/g, "");
+    input.value = typed;
+    input.dataset.rawValue = typed;
   });
   list.addEventListener("focusout", (e) => {
     const input = e.target.closest(".gale-level-input");
@@ -498,9 +501,9 @@ function migrateLegacyGaleLevels(c) {
     if (step === 0) return base;
     if (mode === "custom") {
       const v = Number(custom?.[step]);
-      return v > 0 ? Math.max(snapTo5(v), 5) : Math.max(snapTo5(base * 2 ** step), 5);
+      return v > 0 ? snapChip(v) : snapChip(base * 2 ** step);
     }
-    return mode === "double" ? Math.max(snapTo5(base * 2 ** step), 5) : base;
+    return mode === "double" ? snapChip(base * 2 ** step) : base;
   };
   const colorBase = _levelValue(c.betAmount, 10);
   const tieBase = _levelValue(c.tieProtection ? c.tieAmount : c.tieEntryAmount ?? c.tieAmount, 5);
@@ -524,15 +527,93 @@ function snapAmount(raw) {
 }
 
 // Mantido por compatibilidade (fichas do jogo são múltiplas de 5)
+/* ========== Jogo e fichas (igual ao Bac Bo Automático) ========== */
+const GAME_PROFILES = {
+  bacbo_en: { id: "bacbo_en", label: "Bac Bo Inglês", icon: "dice", chipStep: 5 },
+  bacbo_br: { id: "bacbo_br", label: "Bac Bo Brasileiro", icon: "flag", chipStep: 2.5 },
+};
+
+function gameProfile() {
+  return GAME_PROFILES[state.gameId] || GAME_PROFILES.bacbo_br;
+}
+
+/** Menor ficha da mesa escolhida: 2,50 no brasileiro, 5 no inglês. */
+function chipStep() {
+  return gameProfile().chipStep;
+}
+
+/** "2,5" / "2,50" / "10" / 12.5 → número. */
+function parseMoney(raw) {
+  if (typeof raw === "number") return raw;
+  let t = String(raw ?? "").replace(/[^\d,.]/g, "");
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(t);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Arredonda para baixo no múltiplo da menor ficha; mínimo = uma ficha. */
+function snapChip(raw) {
+  const stepCents = Math.round(chipStep() * 100);
+  const cents = Math.round(parseMoney(raw) * 100);
+  const snapped = Math.floor(cents / stepCents) * stepCents;
+  return Math.max(snapped, stepCents) / 100;
+}
+
+function moneyInputText(value) {
+  return String(value).replace(".", ",");
+}
+
+function renderGamePicker() {
+  const box = $("gamePicker");
+  if (!box) return;
+  box.innerHTML = Object.values(GAME_PROFILES)
+    .map(
+      (g) => `
+      <label class="game-card">
+        <input type="radio" name="gameId" class="game-picker-input" value="${g.id}" ${g.id === state.gameId ? "checked" : ""} />
+        <div class="game-card-body">
+          <div class="game-card-head">
+            ${window.fbotIcon(g.icon)}
+            <span class="game-card-title">${g.label}</span>
+            <span class="game-card-meta">ficha mín. ${formatCurrency(g.chipStep)}</span>
+          </div>
+        </div>
+      </label>`,
+    )
+    .join("");
+}
+
+function bindGamePicker() {
+  $("gamePicker")?.addEventListener("change", (e) => {
+    const input = e.target.closest(".game-picker-input");
+    if (!input || !GAME_PROFILES[input.value]) return;
+    state.gameId = input.value;
+    // Revalida os valores com a ficha nova (ex.: 2,50 no inglês vira 5).
+    state.galeLevels = state.galeLevels.map((lv) => ({ color: snapChip(lv.color), tie: snapChip(lv.tie) }));
+    renderGaleLevels();
+    const chip = $("tieDuploSecoChip");
+    if (chip) {
+      const v = snapChip(chip.dataset.rawValue || chip.value);
+      chip.dataset.rawValue = v;
+      chip.value = formatCurrency(v);
+      updateTieDuploSecoHint();
+    }
+    renderCycleHint();
+    saveConfig();
+    showToast(`${gameProfile().label}: ficha mínima ${formatCurrency(chipStep())}`, "info");
+  });
+}
+
+/* Mantido por compatibilidade: agora segue as fichas do jogo escolhido. */
 function snapTo5(raw) {
-  const n = parseInt(String(raw).replace(/\D/g, ""), 10) || 0;
-  const snapped = Math.floor(n / 5) * 5;
-  return Math.max(snapped, 5);
+  return snapChip(raw);
 }
 
 // Formata número inteiro como "R$ 1.250"
 function formatCurrency(n) {
-  return "R$ " + Number(n).toLocaleString("pt-BR");
+  const v = Number(n) || 0;
+  const frac = Math.round(v * 100) % 100 !== 0;
+  return "R$ " + v.toLocaleString("pt-BR", { minimumFractionDigits: frac ? 2 : 0, maximumFractionDigits: 2 });
 }
 
 function formatSignedCurrency(n) {
@@ -545,9 +626,7 @@ function formatSignedCurrency(n) {
 function readCurrencyInput(id) {
   const el = $(id);
   if (!el) return 5;
-  const raw = (el.dataset.rawValue || el.value || "").replace(/\D/g, "");
-  const n = parseInt(raw, 10) || 0;
-  return Math.max(snapTo5(n), 5);
+  return snapChip(el.dataset.rawValue || el.value || "");
 }
 
 // Aplica máscara num input — valores de entrada são múltiplos de 5 (mínimo 5)
@@ -560,19 +639,19 @@ function applyCurrencyMask(input) {
 // Inicializa todos os inputs de moeda
 function initCurrencyInputs() {
   document.querySelectorAll(".currency-input").forEach((input) => {
-    const initial = snapTo5(parseInt(input.value, 10) || 5);
+    const initial = snapChip(input.dataset.rawValue || input.value || 5);
     input.value = formatCurrency(initial);
     input.dataset.rawValue = initial;
 
     input.addEventListener("focus", () => {
-      input.value = input.dataset.rawValue || "";
+      input.value = moneyInputText(input.dataset.rawValue || "");
       input.select();
     });
 
     input.addEventListener("input", () => {
-      const digits = input.value.replace(/\D/g, "");
-      input.value = digits;
-      input.dataset.rawValue = digits || "";
+      const typed = input.value.replace(/[^\d,]/g, "");
+      input.value = typed;
+      input.dataset.rawValue = typed || "";
     });
 
     input.addEventListener("blur", () => {
@@ -615,7 +694,7 @@ function getCycleMultiplier() {
 function applyCycle(amount) {
   const mult = getCycleMultiplier();
   if (mult === 1) return amount;
-  return Math.max(snapTo5(amount * mult), 5);
+  return snapChip(amount * mult);
 }
 
 function setCycleMult(mult) {
@@ -1251,7 +1330,7 @@ async function executeBet(colorTarget, options = {}) {
   const isGale = !tieSeco && fromGale && galeStep > 0;
 
   const mainAmount = tieSeco
-    ? Math.max(snapTo5(options.amount), 5)
+    ? snapChip(options.amount)
     : getBetAmountForStep(galeStep, isTieEntry);
   const tieProtect =
     !tieSeco && !isTieEntry && ($("tieProtection")?.checked || false);
@@ -2006,6 +2085,7 @@ function renderHistory() {
 function saveConfig() {
   const config = {
     galeMode: state.galeMode,
+    gameId: state.gameId,
     galeLevels: state.galeLevels.slice(0, state.galeMode + 1),
     tieProtection: $("tieProtection")?.checked || false,
     selectorPlayer: $("selectorPlayer")?.value || "",
@@ -2045,6 +2125,17 @@ function loadConfig() {
     }
     const c = bacboConfig;
     let migratedGale = false;
+    // Jogo antes dos valores: define a menor ficha (2,50 no brasileiro, 5 no inglês).
+    state.gameId = GAME_PROFILES[c.gameId] ? c.gameId : c.chipProfile === "bacbo_en" ? "bacbo_en" : "bacbo_br";
+    renderGamePicker();
+
+    const setVal = (id, v) => {
+      const el = $(id);
+      if (!el || v == null) return;
+      const n = snapChip(v);
+      el.value = formatCurrency(n);
+      el.dataset.rawValue = n;
+    };
 
     if (Array.isArray(c.galeLevels) && c.galeLevels.length) {
       state.galeLevels = c.galeLevels.map((lv) => ({ color: lv?.color, tie: lv?.tie }));
