@@ -128,6 +128,7 @@ function initApp() {
   bindPopout();
   updateUI();
   startConnectionMonitor();
+  bindReleaseBanner();
   startBancaRefresh();
 
   Strategies.init();
@@ -200,6 +201,7 @@ async function enterApp() {
   initApp();
   BacListAuth.startHeartbeat(() => state.autoMode, onAuthLost);
   BacListTelegram.start(executeTelegramCommand);
+  startReleaseCheck();
 }
 
 async function bootAuth() {
@@ -852,7 +854,10 @@ function getTieProtectAmountForStep(step) {
 
 /* ========== Main Controls ========== */
 function bindMainControls() {
-  $("btnAuto").addEventListener("click", () => toggleAutoMode());
+  $("btnAuto").addEventListener("click", () => {
+    if (state.autoMode) toggleAutoMode();
+    else void startAutomationChecked();
+  });
   $("bettingHouse")?.addEventListener("change", saveConfig);
   $("chipProfile")?.addEventListener("change", saveConfig);
   $("fullscreenOnLoad")?.addEventListener("change", saveConfig);
@@ -984,6 +989,103 @@ function notifyBalanceAfterSettle() {
 }
 
 const NOTIFY_SIDE = { A: "player", V: "banker", T: "tie" };
+
+/* ========== Versão da extensão (igual ao Automático) ========== */
+const RELEASE_CHECK_MS = 10 * 60 * 1000;
+let _releaseInfo = null; // { latest, current, available }
+let _releaseTimer = null;
+let _startingAuto = false;
+
+function isNewerVersion(latest, current) {
+  const parts = (value) => String(value || "").split(".").map((n) => parseInt(n, 10) || 0);
+  const next = parts(latest);
+  const installed = parts(current);
+  const len = Math.max(next.length, installed.length);
+  for (let i = 0; i < len; i++) {
+    const diff = (next[i] || 0) - (installed[i] || 0);
+    if (diff !== 0) return diff > 0;
+  }
+  return false;
+}
+
+/**
+ * Consulta a versão publicada no painel. Sem rede ou sem pacote publicado,
+ * não bloqueia (igual ao Automático).
+ * @returns {Promise<boolean>} true quando há versão mais nova.
+ */
+async function checkListasRelease() {
+  if (!BacListAuth.isLoggedIn()) return false;
+  try {
+    const data = await BacListAuth.api("/api/listas/release");
+    const latest = String(data?.version || "");
+    const current = chrome.runtime.getManifest().version;
+    _releaseInfo = {
+      latest,
+      current,
+      available: latest !== "" && isNewerVersion(latest, current),
+    };
+  } catch (_) {
+    return false;
+  } finally {
+    renderReleaseBanner();
+  }
+  return !!_releaseInfo?.available;
+}
+
+function renderReleaseBanner() {
+  const banner = $("extensionUpdateBanner");
+  if (!banner) return;
+  if (!_releaseInfo?.available || !_releaseInfo.latest) {
+    banner.hidden = true;
+    return;
+  }
+  banner.hidden = false;
+  const text = $("extensionUpdateText");
+  if (text) {
+    text.textContent = `Versão ${_releaseInfo.latest} pronta (instalada: ${_releaseInfo.current}). Baixe o zip, substitua os arquivos da extensão e recarregue em chrome://extensions. A automação só liga depois de atualizar.`;
+  }
+}
+
+function bindReleaseBanner() {
+  $("extensionUpdateDownload")?.addEventListener("click", async () => {
+    const button = $("extensionUpdateDownload");
+    if (button) button.disabled = true;
+    try {
+      await BacListAuth.downloadRelease(_releaseInfo?.latest);
+    } catch (err) {
+      showToast(err?.message || "Não foi possível baixar a atualização.", "error");
+    } finally {
+      if (button) button.disabled = false;
+    }
+  });
+}
+
+function startReleaseCheck() {
+  void checkListasRelease();
+  if (_releaseTimer) return;
+  _releaseTimer = setInterval(() => void checkListasRelease(), RELEASE_CHECK_MS);
+}
+
+/**
+ * Liga a automação só se a extensão estiver na versão publicada no painel.
+ * @returns {Promise<{ ok: boolean, text?: string }>}
+ */
+async function startAutomationChecked(options = {}) {
+  if (state.autoMode) return { ok: true };
+  if (_startingAuto) return { ok: false, text: "Verificando a versão da extensão..." };
+  _startingAuto = true;
+  try {
+    if (await checkListasRelease()) {
+      const message = `Atualização ${_releaseInfo?.latest || "nova"} disponível. Baixe o zip no painel e recarregue a extensão antes de ligar.`;
+      showToast(message, "error");
+      return { ok: false, text: message };
+    }
+    if (!state.autoMode) toggleAutoMode(options);
+    return { ok: true };
+  } finally {
+    _startingAuto = false;
+  }
+}
 
 /* ========== Auto Mode ========== */
 /**
@@ -2332,6 +2434,9 @@ async function tgStatusText() {
     `🏁 Stop Win: ${stopWin > 0 ? formatCurrency(stopWin) : "desligado"}`,
   );
   if (_pendingBet?.awaiting) lines.push("⏳ Aposta aguardando resultado");
+  if (_releaseInfo?.available && _releaseInfo.latest) {
+    lines.push("", `⬆️ Atualização ${_releaseInfo.latest} disponível — baixe o zip no painel da extensão`);
+  }
   return lines.join("\n");
 }
 
@@ -2360,7 +2465,8 @@ async function executeTelegramCommand(action, payload = null) {
   }
   if (action === "ligar") {
     if (state.autoMode) return { ok: true, text: "ℹ️ A automação já está ligada." };
-    toggleAutoMode({ silent: true });
+    const started = await startAutomationChecked({ silent: true });
+    if (!started.ok) return { ok: false, text: `⚠️ ${started.text}` };
     return { ok: true, text: "ℹ️ Apostador ativo. Aguardando entrada automática..." };
   }
   if (action === "parar") {

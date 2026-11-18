@@ -240,8 +240,25 @@ const BacListAuth = (() => {
     return request(path, options);
   }
 
+  /** Baixa o zip da versão publicada no painel (igual ao "Baixar zip" do Automático). */
+  async function downloadRelease(version) {
+    if (!auth?.token) throw new Error("Faça login na extensão para baixar a atualização.");
+    const response = await fetch(`${API_BASE}/api/listas/release/download`, {
+      headers: { Authorization: `Bearer ${auth.token}` },
+    });
+    if (!response.ok) throw new Error("Não foi possível baixar a atualização.");
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = version ? `fbot-listas-${version}.zip` : "fbot-listas.zip";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   return {
     api,
+    downloadRelease,
     isLoggedIn,
     username,
     takeNotice,

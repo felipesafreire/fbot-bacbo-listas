@@ -2763,3 +2763,59 @@ body {
 h1, h2, h3, .card-title { font-family: var(--font-display); letter-spacing: -0.01em; }
 .ic { flex: none; }
 .ic-2x { font-size: 2em; }
+
+/* Versão nova no painel (igual ao Automático): ligar fica bloqueado até atualizar */
+.update-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 10px 12px;
+  background: var(--warn-muted);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.update-banner[hidden] {
+  display: none !important;
+}
+
+.update-banner p {
+  margin: 0;
+}
+
+.update-banner-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--brand);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.update-banner-btn:hover {
+  filter: brightness(1.08);
+}
+
+.update-banner-btn:active {
+  transform: scale(0.97);
+}
+
+.update-banner-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.update-banner-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
