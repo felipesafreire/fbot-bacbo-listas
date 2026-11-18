@@ -89,6 +89,13 @@
             </button>
           </div>
         </div>
+        <div class="header-info-bar">
+          <div class="header-balance" title="Saldo da conta lido na mesa">
+            <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-wallet"></use></svg>
+            <span class="balance-label">Banca</span>
+            <span class="balance-value balance-value--muted" id="statBanca">Sem mesa</span>
+          </div>
+        </div>
         <div class="header-next" id="headerNextEntry" style="display: none"></div>
       </div>
     </header>
@@ -169,31 +176,34 @@
     <!-- Tab: Apostas -->
     <div class="tab-content active" id="tab-apostas">
       <section class="gamble-card">
-        <h3 class="card-title">
-          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-chart"></use></svg> Resumo da sessão
-        </h3>
-        <div class="stats-grid">
+        <div class="card-title-row">
+          <h3 class="card-title"><svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-coins"></use></svg> Resumo da sessão</h3>
+          <button id="btnClearSession" class="btn-text" type="button">Limpar</button>
+        </div>
+        <div class="stats-grid stats-grid--2">
           <div class="stat-item">
-            <span class="stat-value text-green" id="statWins">0</span>
-            <span class="stat-label">Ganhos</span>
+            <span class="stat-value stat-value--muted" id="totalBetValue">—</span>
+            <span class="stat-label">Última aposta</span>
+            <span class="stat-meta" id="totalBetMeta"></span>
           </div>
           <div class="stat-item">
-            <span class="stat-value text-red" id="statLosses">0</span>
-            <span class="stat-label">Perdas</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value" id="statTotal">0</span>
-            <span class="stat-label">Total</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value text-green" id="statBalance">R$ 0</span>
-            <span class="stat-label">Saldo</span>
+            <span class="stat-value stat-value--gale" id="gale-display">G0</span>
+            <span class="stat-label">Gale atual</span>
           </div>
         </div>
-        <div class="stat-banca" title="Saldo da conta lido na mesa">
-          <span class="stat-banca-label">Banca</span>
-          <span class="stat-banca-value stat-value--muted" id="statBanca">Sem mesa</span>
-          <span class="stat-banca-pnl" id="statBancaPnl" hidden></span>
+        <div class="stats-grid stats-grid--3 session-stats">
+          <div class="stat-item stat-item--compact">
+            <span class="stat-value stat-value--win" id="statWins">0</span>
+            <span class="stat-label">Greens</span>
+          </div>
+          <div class="stat-item stat-item--compact">
+            <span class="stat-value stat-value--loss" id="statLosses">0</span>
+            <span class="stat-label">Reds</span>
+          </div>
+          <div class="stat-item stat-item--compact">
+            <span class="stat-value" id="statPnl">—</span>
+            <span class="stat-label">P&amp;L sessão</span>
+          </div>
         </div>
       </section>
 

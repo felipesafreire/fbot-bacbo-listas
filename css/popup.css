@@ -1025,46 +1025,6 @@ body.is-popout .tab-content {
   letter-spacing: 0.5px;
 }
 
-/* Banca da conta lida na mesa (igual ao cabeçalho do Automático) */
-.stat-banca {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  margin-top: 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-}
-
-.stat-banca-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-.stat-banca-value {
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.stat-banca-value.stat-value--muted {
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.stat-banca-pnl {
-  margin-left: auto;
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 12px;
-}
-
 .field-help {
   display: block;
   margin-top: 5px;
@@ -2868,7 +2828,156 @@ h1, h2, h3, .card-title { font-family: var(--font-display); letter-spacing: -0.0
   opacity: 1;
 }
 
-/* Resumo da sessão na aba Apostas */
+
+
+/* ══ Resumo da sessão e banca — mesmo desenho do Bac Bo Automático ══ */
 #tab-apostas > .gamble-card:first-child {
   margin-bottom: 12px;
+}
+
+.card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.card-title-row .card-title {
+  margin-bottom: 0;
+}
+
+.card-title-row + .stats-grid {
+  margin-top: 10px;
+}
+
+.btn-text {
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition), background var(--transition);
+}
+
+.btn-text:hover {
+  color: var(--accent-light);
+  background: var(--accent-muted);
+}
+
+.btn-text:active {
+  transform: scale(0.97);
+}
+
+.btn-text:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.stats-grid,
+.stats-grid.stats-grid--3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stats-grid.stats-grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.stats-grid--3 {
+  margin-top: 0.75rem;
+}
+
+.stats-grid .stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 12px 8px;
+  background: var(--fill);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.stats-grid .stat-value {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--accent-light);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.stats-grid .stat-item--compact .stat-value {
+  font-size: 1rem;
+}
+
+.stats-grid .stat-value--muted { color: var(--text-muted); font-size: 14px; }
+.stats-grid .stat-value--gale { color: var(--yellow-light); }
+.stats-grid .stat-value--win { color: var(--win-light); }
+.stats-grid .stat-value--loss { color: var(--red-light); }
+
+.stats-grid .stat-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.session-stats .stat-label {
+  font-size: 0.65rem;
+}
+
+.stat-meta {
+  font-size: 9px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.header-info-bar {
+  display: flex;
+  align-items: stretch;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--fill);
+}
+
+.header-balance {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.header-balance .ic {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.balance-value {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-weight: 800;
+  color: var(--accent-light);
+  font-variant-numeric: tabular-nums;
+}
+
+.balance-value--muted {
+  color: var(--text-muted);
+  font-weight: 600;
 }

@@ -813,18 +813,20 @@ function renderBanca() {
   const el = $("statBanca");
   if (el) {
     el.textContent = _banca.current != null ? formatBrl(_banca.current) : "Sem mesa";
-    el.classList.toggle("stat-value--muted", _banca.current == null);
+    el.classList.toggle("balance-value--muted", _banca.current == null);
   }
-  const pnlEl = $("statBancaPnl");
-  if (pnlEl) {
-    const delta = bancaSessionDelta();
-    pnlEl.hidden = delta == null;
-    if (delta != null) {
-      pnlEl.textContent = `${delta >= 0 ? "+" : "-"}${formatBrl(Math.abs(delta))} na sessão`;
-      pnlEl.classList.toggle("text-green", delta >= 0);
-      pnlEl.classList.toggle("text-red", delta < 0);
-    }
-  }
+  renderSessionPnl();
+}
+
+/** P&L da sessão: variação da banca da mesa; sem banca lida, o resultado das apostas. */
+function renderSessionPnl() {
+  const el = $("statPnl");
+  if (!el) return;
+  const bancaDelta = bancaSessionDelta();
+  const delta = bancaDelta != null ? bancaDelta : state.betCount > 0 ? roundMoney(state.totalPnl) : null;
+  el.textContent = delta != null ? formatBrl(delta) : "—";
+  el.classList.toggle("stat-value--win", delta != null && delta > 0);
+  el.classList.toggle("stat-value--loss", delta != null && delta < 0);
 }
 
 /** Diferença da banca desde que a automação ligou (ou o placar foi zerado). */
@@ -1670,18 +1672,29 @@ function showLastBet(target, amount, tieProtect, tieAmount, galeStep) {
   if (tieProtect) msg += ` + ${formatCurrency(tieAmount)} Emp.`;
   text.textContent = msg;
   info.style.display = "block";
+  updateUI();
 }
 
 /* ========== Update UI ========== */
+const SIDE_NAMES = { player: "Azul", banker: "Vermelho", tie: "Empate" };
+
 function updateUI() {
   $("statWins").textContent = state.wins;
   $("statLosses").textContent = state.losses;
-  $("statTotal").textContent = state.betCount;
-  const balanceEl = $("statBalance");
-  if (balanceEl) {
-    balanceEl.textContent = formatSignedCurrency(state.totalPnl);
-    balanceEl.classList.toggle("text-green", state.totalPnl >= 0);
-    balanceEl.classList.toggle("text-red", state.totalPnl < 0);
+  renderSessionPnl();
+
+  const gale = $("gale-display");
+  if (gale) gale.textContent = `G${state.galeStep || 0}`;
+
+  // Última aposta: a mais recente do histórico (entrada ou gale).
+  const last = state.history?.[0];
+  const valueEl = $("totalBetValue");
+  const metaEl = $("totalBetMeta");
+  if (valueEl) {
+    const amount = Number(last?.amount) || 0;
+    valueEl.textContent = amount > 0 ? formatBrl(amount) : "—";
+    valueEl.classList.toggle("stat-value--muted", !(amount > 0));
+    if (metaEl) metaEl.textContent = amount > 0 ? SIDE_NAMES[last.target] || "" : "";
   }
 }
 
@@ -1970,6 +1983,13 @@ function bindHistoryControls() {
     if (confirm("Deseja limpar o histórico e zerar as estatísticas?")) {
       resetPlacar();
       showToast("Histórico limpo", "info");
+    }
+  });
+  // Limpar do Resumo da sessão (igual ao Automático): zera placar e histórico.
+  $("btnClearSession")?.addEventListener("click", () => {
+    if (confirm("Limpar o resumo da sessão? Placar e histórico de apostas serão zerados.")) {
+      resetPlacar();
+      showToast("Resumo da sessão limpo", "info");
     }
   });
 }
