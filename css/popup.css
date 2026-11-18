@@ -3118,3 +3118,17 @@ textarea.field-input {
   font-size: 11px;
   color: var(--text-muted);
 }
+
+/* Relógio do cabeçalho (igual ao Automático) */
+.header-clock {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: center;
+  user-select: none;
+}

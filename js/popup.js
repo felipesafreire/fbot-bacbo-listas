@@ -52,6 +52,24 @@ const $ = (id) => document.getElementById(id);
 
 let _appInitialized = false;
 
+/* ========== Relógio do cabeçalho (igual ao Automático) ========== */
+function startHeaderClock() {
+  const el = $("headerClock");
+  if (!el) return;
+  const tick = () => {
+    const now = new Date();
+    el.textContent = now.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+    el.dateTime = now.toISOString();
+    setTimeout(tick, 1000 - now.getMilliseconds());
+  };
+  tick();
+}
+
 /* ========== Monitor de Conexão ========== */
 const _CONN_PING_URL = "https://www.google.com/favicon.ico";
 const _CONN_PING_INTERVAL = 10000;
@@ -131,6 +149,7 @@ function initApp() {
   bindHistoryControls();
   updateUI();
   startConnectionMonitor();
+  startHeaderClock();
   bindReleaseBanner();
   startBancaRefresh();
 
@@ -1409,12 +1428,7 @@ async function executeBet(colorTarget, options = {}) {
         ciclo: false,
       });
 
-      const names = { player: "Jogador", banker: "Casa", tie: "Empate" };
-      showToast(
-        `${galeStepLabel(galeStep)}: ${formatCurrency(mainAmount)} em ${names[target] || target}` +
-          (tieProtect ? ` + ${formatCurrency(tieAmount)} Emp.` : ""),
-        "success",
-      );
+      showToast(betDescription(galeStep, target, mainAmount, tieProtect ? tieAmount : 0), "success");
 
       if (!fromGale) {
         state.betCount++;
@@ -1664,13 +1678,19 @@ function recordPatternRefund(colorTarget, match = {}) {
 }
 
 /* ========== Show Last Bet ========== */
+/** Ex.: "Gale 1 apostado: R$ 15 no Vermelho + R$ 5 no Empate (proteção)". */
+function betDescription(galeStep, target, amount, tieAmount) {
+  const names = { player: "Azul", banker: "Vermelho", tie: "Empate" };
+  const step = galeStep > 0 ? `Gale ${galeStep}` : "Entrada";
+  let msg = `${step} apostado: ${formatCurrency(amount)} no ${names[target] || target}`;
+  if (tieAmount > 0) msg += ` + ${formatCurrency(tieAmount)} no Empate (proteção)`;
+  return msg;
+}
+
 function showLastBet(target, amount, tieProtect, tieAmount, galeStep) {
   const info = $("lastBetInfo");
   const text = $("lastBetText");
-  const names = { player: "Jogador", tie: "Empate", banker: "Casa" };
-  let msg = `${galeStepLabel(galeStep)}: ${formatCurrency(amount)} em ${names[target] || target}`;
-  if (tieProtect) msg += ` + ${formatCurrency(tieAmount)} Emp.`;
-  text.textContent = msg;
+  text.textContent = betDescription(galeStep, target, amount, tieProtect ? tieAmount : 0);
   info.style.display = "block";
   updateUI();
 }
@@ -2026,7 +2046,7 @@ function renderHistory() {
     tie: window.fbotIcon('equals', 'text-yellow'),
     banker: window.fbotIcon('landmark', 'text-red'),
   };
-  const targetNames = { player: "Jogador", tie: "Empate", banker: "Casa" };
+  const targetNames = { player: "Azul", tie: "Empate", banker: "Vermelho" };
   const resultIcons = {
     win: window.fbotIcon('circle-check', 'text-green'),
     loss: window.fbotIcon('circle-x', 'text-red'),
