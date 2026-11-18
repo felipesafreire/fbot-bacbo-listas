@@ -205,9 +205,20 @@ async function enterApp() {
   BacListTelegram.start(executeTelegramCommand);
   startReleaseCheck();
   void fetchBettingHouses();
+  void resumeAutomationInPopout();
 }
 
 async function bootAuth() {
+  // Painel lateral com a janela flutuante já aberta: usa a janela e fecha a lateral.
+  if (!new URLSearchParams(window.location.search).has("popout")) {
+    try {
+      const r = await chrome.runtime.sendMessage({ action: "focusPopoutIfOpen" });
+      if (r?.open) {
+        await closeSidePanel();
+        return;
+      }
+    } catch (_) {}
+  }
   chrome.runtime
     .sendMessage({ action: "setAutomationRunning", active: false })
     .catch(() => {});
@@ -365,26 +376,56 @@ function detectPopout() {
   }
 }
 
+/** Fecha o painel lateral (a janela flutuante fica no lugar dele). */
+async function closeSidePanel() {
+  try {
+    if (chrome.sidePanel?.close) {
+      const win = await chrome.windows.getCurrent();
+      await chrome.sidePanel.close({ windowId: win.id });
+      return;
+    }
+  } catch (_) {}
+  window.close();
+}
+
 function bindPopout() {
   const btn = $("btnPopout");
   if (!btn || state.isPopout) return;
   btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    const wasRunning = state.autoMode;
     try {
+      // Para aqui antes de abrir: a janela nova liga de novo (sem aviso no Telegram).
+      if (wasRunning) toggleAutoMode({ silent: true });
       const r = await chrome.runtime.sendMessage({
         action: "openPopoutWindow",
+        resume: wasRunning,
       });
-      if (r?.success) {
-        showToast(
-          r.focused ? "Janela flutuante em foco" : "Janela flutuante aberta",
-          "info",
-        );
-      } else {
-        showToast(r?.error || "Não foi possível abrir a janela", "error");
-      }
+      if (!r?.success) throw new Error(r?.error || "Não foi possível abrir a janela");
+      BacListTelegram.stop();
+      BacListAuth.stopHeartbeat();
+      await closeSidePanel();
     } catch (err) {
-      showToast("Erro ao abrir janela flutuante", "error");
+      if (wasRunning && !state.autoMode) void startAutomationChecked({ silent: true });
+      showToast(err?.message || "Erro ao abrir janela flutuante", "error");
+      btn.disabled = false;
     }
   });
+}
+
+/** Janela aberta pelo botão com a automação ligada: continua a automação aqui. */
+async function resumeAutomationInPopout() {
+  if (!state.isPopout) return;
+  if (new URLSearchParams(window.location.search).get("resume") !== "1") return;
+  const deadline = Date.now() + 8000;
+  while (!_configLoaded && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  const started = await startAutomationChecked({ silent: true });
+  showToast(
+    started.ok ? "Automação continua na janela flutuante" : started.text || "Automação não religou",
+    started.ok ? "info" : "error",
+  );
 }
 
 /* ========== Tabs ========== */
