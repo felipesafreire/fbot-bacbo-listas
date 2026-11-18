@@ -128,6 +128,7 @@ function initApp() {
   bindPopout();
   updateUI();
   startConnectionMonitor();
+  startBancaRefresh();
 
   Strategies.init();
   onScheduleTypeChanged("none");
@@ -869,6 +870,18 @@ function notifyBot(type, meta = {}) {
   void BacListTelegram.notify(type, meta);
 }
 
+/**
+ * Aviso com a banca da mesa lida na hora do envio ("💰 Saldo atualizado" no Telegram).
+ * Sem mesa aberta, vai sem o saldo.
+ */
+function notifyBotWithBalance(type, meta = {}) {
+  notifyBot(type, async () => {
+    const base = typeof meta === "function" ? await meta() : meta;
+    const balance = await readBanca();
+    return balance != null ? { ...base, balance: roundMoney(balance) } : base;
+  });
+}
+
 /** Resumo da sessão para "Automação desligada". Lido na hora do envio. */
 function notifySummary(reason) {
   return () => ({
@@ -879,6 +892,95 @@ function notifySummary(reason) {
     ties: _notifyStats.ties,
     pnl: Math.round((state.totalPnl - _notifyStats.startPnl) * 100) / 100,
   });
+}
+
+/* ========== Banca (saldo da conta na mesa) — igual ao Automático ========== */
+const BANCA_REFRESH_MS = 8000;
+// Tempo para a mesa creditar o pagamento antes de ler o saldo do resultado.
+const BALANCE_SETTLE_MS = 3500;
+const _banca = { current: null, initial: null };
+let _bancaTimer = null;
+let _lastPlacedAt = 0;
+
+function roundMoney(n) {
+  return Math.round(Number(n) * 100) / 100;
+}
+
+function formatBrl(n) {
+  const value = Number(n);
+  if (!Number.isFinite(value)) return "—";
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+/** Lê o saldo da conta no iframe da mesa. Retorna null sem mesa aberta. */
+async function readBanca({ retries = 2, delayMs = 250 } = {}) {
+  try {
+    const r = await chrome.runtime.sendMessage({
+      action: "readAccountBalance",
+      retries,
+      delayMs,
+    });
+    const value = Number(r?.value);
+    if (r?.value != null && Number.isFinite(value)) {
+      _banca.current = value;
+      renderBanca();
+      return value;
+    }
+  } catch (_) {}
+  return null;
+}
+
+function renderBanca() {
+  const el = $("statBanca");
+  if (el) {
+    el.textContent = _banca.current != null ? formatBrl(_banca.current) : "Sem mesa";
+    el.classList.toggle("stat-value--muted", _banca.current == null);
+  }
+  const pnlEl = $("statBancaPnl");
+  if (pnlEl) {
+    const delta = bancaSessionDelta();
+    pnlEl.hidden = delta == null;
+    if (delta != null) {
+      pnlEl.textContent = `${delta >= 0 ? "+" : "-"}${formatBrl(Math.abs(delta))} na sessão`;
+      pnlEl.classList.toggle("text-green", delta >= 0);
+      pnlEl.classList.toggle("text-red", delta < 0);
+    }
+  }
+}
+
+/** Diferença da banca desde que a automação ligou (ou o placar foi zerado). */
+function bancaSessionDelta() {
+  if (_banca.initial == null || _banca.current == null) return null;
+  return roundMoney(_banca.current - _banca.initial);
+}
+
+/** Marca a banca de agora como início da sessão. */
+async function markBancaInicial() {
+  const value = await readBanca({ retries: 4, delayMs: 300 });
+  _banca.initial = value != null ? value : _banca.current;
+  renderBanca();
+}
+
+function startBancaRefresh() {
+  if (_bancaTimer) return;
+  void readBanca({ retries: 1 });
+  _bancaTimer = setInterval(() => {
+    // Com aposta aguardando resultado o saldo está descontado da ficha;
+    // a leitura do resultado vem depois do pagamento (notifyBalanceAfterSettle).
+    if (_pendingBet?.awaiting) return;
+    void readBanca({ retries: 1 });
+  }, BANCA_REFRESH_MS);
+}
+
+/** Depois que a rodada paga, manda o saldo atualizado (igual ao Automático). */
+function notifyBalanceAfterSettle() {
+  const waitStarted = Date.now();
+  setTimeout(async () => {
+    const balance = await readBanca({ retries: 4, delayMs: 300 });
+    // Outra aposta saiu no meio da espera: o saldo já está descontado dela.
+    if (balance == null || _lastPlacedAt > waitStarted) return;
+    notifyBot("entry_result", { balance: roundMoney(balance) });
+  }, BALANCE_SETTLE_MS);
 }
 
 const NOTIFY_SIDE = { A: "player", V: "banker", T: "tie" };
@@ -901,14 +1003,20 @@ function toggleAutoMode(options = {}) {
     setStatus("auto", "Rodando", "#63b3ed");
     setCycleMult(1);
     resetNotifyStats();
-    if (!silent) notifyBot("automation_started", {});
+    const bancaInicial = markBancaInicial();
+    if (!silent) {
+      notifyBot("automation_started", async () => {
+        await bancaInicial;
+        return _banca.current != null ? { balance: roundMoney(_banca.current) } : {};
+      });
+    }
     showToast("Automação iniciada — monitorando estratégias", "info");
     chrome.runtime.sendMessage(
       { action: "setAutomationRunning", active: true },
       () => Strategies.setAutoEnabled(true),
     );
   } else {
-    if (!silent) notifyBot("automation_stopped", notifySummary(reason));
+    if (!silent) notifyBotWithBalance("automation_stopped", notifySummary(reason));
     btn.classList.remove("active");
     label.textContent = "Iniciar Automação";
     setStatus("", "Inativo", "");
@@ -1064,6 +1172,8 @@ function _processPendingBetResult(road, resultCor, info) {
     maxGale: Number(maxGale) || 0,
     ciclo: false,
   });
+  // Rodada encerrada: o saldo com o pagamento vem num aviso separado.
+  notifyBalanceAfterSettle();
 
   if (won) {
     _notifyStats.wins++;
@@ -1218,7 +1328,7 @@ async function executeBet(colorTarget, options = {}) {
   // Entrada nova (não gale): avisa antes de clicar, como o Automático.
   const announced = !fromGale;
   if (announced) {
-    notifyBot("entry_identified", {
+    notifyBotWithBalance("entry_identified", {
       game: "bacbo",
       side: notifySide,
       source: notifySource,
@@ -1279,8 +1389,9 @@ async function executeBet(colorTarget, options = {}) {
       recordBet(target, mainAmount, tieProtect, tieAmount, "pending", galeStep);
       showLastBet(target, mainAmount, tieProtect, tieAmount, galeStep);
       placed = true;
+      _lastPlacedAt = Date.now();
       if (!fromGale) _notifyStats.entries++;
-      notifyBot("entry_placed", {
+      notifyBotWithBalance("entry_placed", {
         game: "bacbo",
         side: notifySide,
         amount: Math.round(mainAmount * 100) / 100,
@@ -1881,6 +1992,9 @@ function resetPlacar() {
   saveHistory();
   renderHistory();
   updateUI();
+  // Placar zerado: a banca de agora vira o início da sessão (igual ao Automático).
+  if (_banca.current != null) _banca.initial = _banca.current;
+  renderBanca();
 }
 
 /* ========== Render History ========== */
@@ -2197,21 +2311,33 @@ function tgPlacarLines() {
   ];
 }
 
-function tgStatusText() {
+async function tgStatusText() {
   const stopWin = parseFloat($("stopWin")?.value) || 0;
+  const lido = await readBanca({ retries: 4, delayMs: 300 });
   const lines = [
     state.autoMode ? "▶️ Automação ligada (Bac Bo Listas)" : "⏹ Automação desligada (Bac Bo Listas)",
+    lido != null ? "✅ Mesa aberta" : "🔒 Mesa fechada",
+  ];
+  // Igual ao Automático: sem mesa, mostra o último saldo lido.
+  if (_banca.current != null) lines.push(`💰 Banca: ${formatBrl(_banca.current)}`);
+  const delta = bancaSessionDelta();
+  if (delta != null) {
+    const icon = delta > 0 ? "📈" : delta < 0 ? "📉" : "➖";
+    lines.push(`${icon} P&L da banca: ${formatBrl(delta)}`);
+  }
+  lines.push(
+    "",
     `🎯 Entradas: ${state.betCount}`,
     ...tgPlacarLines(),
     `🏁 Stop Win: ${stopWin > 0 ? formatCurrency(stopWin) : "desligado"}`,
-  ];
+  );
   if (_pendingBet?.awaiting) lines.push("⏳ Aposta aguardando resultado");
   return lines.join("\n");
 }
 
 async function executeTelegramCommand(action, payload = null) {
   if (action === "status") {
-    return { ok: true, text: tgStatusText() };
+    return { ok: true, text: await tgStatusText() };
   }
   if (action === "resetarplacar") {
     resetPlacar();

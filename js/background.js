@@ -1400,8 +1400,84 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
   }
 });
 
+/* ========== Banca (saldo da conta na mesa) — igual ao Automático ========== */
+
+/* Roda dentro de cada frame (autocontida — zero refs externas). */
+function _probeBalanceInFrame() {
+  const primary = document.querySelector('[data-role="balance-label-value"]');
+  if (primary) {
+    const raw =
+      primary.getAttribute("data-balance-visible") || primary.textContent || "";
+    if (String(raw).trim()) return { found: true, raw };
+  }
+  const extras = document.querySelectorAll(
+    '[data-role="balance-amount"], [data-role="balance-value"], [data-role="footer-balance-amount"], [data-role="footer-balance-value"]',
+  );
+  for (const el of extras) {
+    const raw = el.getAttribute("data-balance-visible") || el.textContent || "";
+    if (String(raw).trim()) return { found: true, raw };
+  }
+  return { found: false };
+}
+
+function _parseBrlAmount(raw) {
+  if (raw == null) return null;
+  let s = String(raw)
+    .replace(/[⁦-⁩‪-‮‎‏]/g, "")
+    .replace(/ /g, " ")
+    .replace(/[^0-9.,]/g, "");
+  if (!s) return null;
+  if (s.includes(",")) {
+    s = s.replace(/\./g, "").replace(",", ".");
+  } else {
+    s = s.replace(/\./g, "");
+  }
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Lê o saldo da conta em todos os frames da aba do jogo. */
+async function _readAccountBalance(tabId, { retries = 8, delayMs = 350 } = {}) {
+  if (!tabId) return { found: false, value: null };
+  let last = { found: false, value: null };
+  for (let i = 0; i < retries; i++) {
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        world: "MAIN",
+        func: _probeBalanceInFrame,
+      });
+      const hit = results?.map((r) => r.result).find((r) => r?.found);
+      if (hit) {
+        const value = _parseBrlAmount(hit.raw);
+        if (value != null) return { found: true, value, raw: hit.raw };
+        last = { found: true, value: null, raw: hit.raw };
+      }
+    } catch (e) {
+      last = { found: false, value: null, error: e?.message || String(e) };
+    }
+    if (i < retries - 1) await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return last;
+}
+
 /* ========== Listener de Mensagens ========== */
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.action === "readAccountBalance") {
+    _resolveTabId(msg.tabId)
+      .then((tabId) =>
+        _readAccountBalance(tabId, {
+          retries: Number(msg.retries) > 0 ? Number(msg.retries) : 8,
+          delayMs: Number(msg.delayMs) > 0 ? Number(msg.delayMs) : 350,
+        }),
+      )
+      .then((r) => sendResponse(r))
+      .catch((e) =>
+        sendResponse({ found: false, value: null, error: e?.message || String(e) }),
+      );
+    return true;
+  }
+
   // Relay: content.js → popup (historyUpdate)
   if (msg.action === "historyUpdate") {
     chrome.runtime.sendMessage(msg).catch(() => {});

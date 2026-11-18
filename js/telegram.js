@@ -99,7 +99,13 @@ const BacListTelegram = (() => {
 
   async function deliverNotify(type, meta) {
     if (!BacListAuth.isLoggedIn()) return;
-    const body = typeof meta === "function" ? meta() : meta || {};
+    let body = {};
+    try {
+      // Função pode ser async (lê a banca da mesa na hora do envio).
+      body = (typeof meta === "function" ? await meta() : meta) || {};
+    } catch (err) {
+      console.warn(`[BacList] Aviso ${type}: falha ao montar dados`, err?.message || err);
+    }
     try {
       try {
         await sendNotify(type, body);
@@ -116,7 +122,7 @@ const BacListTelegram = (() => {
 
   /**
    * Enfileira um aviso no bot do Telegram (entrada, resultado, liga/desliga).
-   * `meta` pode ser função: é lida na hora do envio, depois dos avisos anteriores.
+   * `meta` pode ser função (sync ou async): é lida na hora do envio, depois dos avisos anteriores.
    */
   function notify(type, meta = {}) {
     const run = notifyChain.then(() => deliverNotify(type, meta));
