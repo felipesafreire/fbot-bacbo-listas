@@ -1413,7 +1413,7 @@ async function executeBet(colorTarget, options = {}) {
 
 
       recordBet(target, mainAmount, tieProtect, tieAmount, "pending", galeStep);
-      showLastBet(target, mainAmount, tieProtect, tieAmount, galeStep);
+      updateUI();
       placed = true;
       _lastPlacedAt = Date.now();
       if (!fromGale) _notifyStats.entries++;
@@ -1428,7 +1428,6 @@ async function executeBet(colorTarget, options = {}) {
         ciclo: false,
       });
 
-      showToast(betDescription(galeStep, target, mainAmount, tieProtect ? tieAmount : 0), "success");
 
       if (!fromGale) {
         state.betCount++;
@@ -1678,22 +1677,6 @@ function recordPatternRefund(colorTarget, match = {}) {
 }
 
 /* ========== Show Last Bet ========== */
-/** Ex.: "Gale 1 apostado: R$ 15 no Vermelho + R$ 5 no Empate (proteção)". */
-function betDescription(galeStep, target, amount, tieAmount) {
-  const names = { player: "Azul", banker: "Vermelho", tie: "Empate" };
-  const step = galeStep > 0 ? `Gale ${galeStep}` : "Entrada";
-  let msg = `${step} apostado: ${formatCurrency(amount)} no ${names[target] || target}`;
-  if (tieAmount > 0) msg += ` + ${formatCurrency(tieAmount)} no Empate (proteção)`;
-  return msg;
-}
-
-function showLastBet(target, amount, tieProtect, tieAmount, galeStep) {
-  const info = $("lastBetInfo");
-  const text = $("lastBetText");
-  text.textContent = betDescription(galeStep, target, amount, tieProtect ? tieAmount : 0);
-  info.style.display = "block";
-  updateUI();
-}
 
 /* ========== Update UI ========== */
 const SIDE_NAMES = { player: "Azul", banker: "Vermelho", tie: "Empate" };
