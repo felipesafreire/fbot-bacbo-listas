@@ -1223,23 +1223,6 @@ function countHistoryReds(history = state.history) {
   return (history || []).filter((entry) => entry?.result === "loss").length;
 }
 
-function skipG1SequenceLength() {
-  const n = parseInt($("skipG1SequenceLength")?.value, 10);
-  if (!Number.isFinite(n)) return 3;
-  return Math.min(8, Math.max(2, n));
-}
-
-function sequenceBlocksG1(road, target) {
-  if (!$("patternGuardEnabled")?.checked) return null;
-  if (!$("skipG1OnSequence")?.checked || target === "T") return null;
-  if (typeof PatternGuard === "undefined") return null;
-  return PatternGuard.blocksOppositeSequence(road, target, {
-    enabled: true,
-    strongSequence: true,
-    strongSequenceLength: skipG1SequenceLength(),
-  });
-}
-
 function _processPendingBetResult(road, resultCor, info) {
   const betTarget = _pendingBet.colorTarget;
   const galeStepAtBet = _pendingBet.galeStep;
@@ -1312,16 +1295,11 @@ function _processPendingBetResult(road, resultCor, info) {
     return info;
   }
 
-  let g1Blocked = null;
-  if (galeStepAtBet === 0 && galeStepAtBet < maxGale) {
-    g1Blocked = sequenceBlocksG1(road, betTarget);
-  }
-
   // Entrada em cor sem proteção e saiu empate: red direto, sem gale.
   const unprotectedTie =
     !isTieEntry && !_pendingBet.tieSeco && !hasTieProtection && resultCor === "T";
 
-  const shouldGale = galeStepAtBet < maxGale && !g1Blocked && !unprotectedTie;
+  const shouldGale = galeStepAtBet < maxGale && !unprotectedTie;
 
   if (shouldGale) {
     state.galeStep = galeStepAtBet + 1;
@@ -1358,12 +1336,10 @@ function _processPendingBetResult(road, resultCor, info) {
     ? ` — ciclo: próxima SG ${formatCurrency(applyCycle(readCurrencyInput(isTieEntry ? "tieEntryAmount" : "betAmount")))}`
     : "";
   showToast(
-    (g1Blocked
-      ? `G1 cancelado — ${g1Blocked.reason}`
-      : unprotectedTie
-        ? "Red — empate sem proteção"
-        : "Loss — sequência encerrada") + cycleMsg,
-    g1Blocked ? "info" : "error",
+    (unprotectedTie
+      ? "Red — empate sem proteção"
+      : "Loss — sequência encerrada") + cycleMsg,
+    "error",
   );
   _pendingBet = null;
   return info;
@@ -2062,12 +2038,6 @@ function bindConfigControls() {
     saveConfig();
   });
   $("tieDuploSecoChip")?.addEventListener("blur", updateTieDuploSecoHint);
-  $("skipG1OnSequence")?.addEventListener("change", saveConfig);
-  $("skipG1SequenceLength")?.addEventListener("change", () => {
-    const el = $("skipG1SequenceLength");
-    if (el) el.value = skipG1SequenceLength();
-    saveConfig();
-  });
   updateTieDuploSecoHint();
   $("historyUrl")?.addEventListener("change", saveConfig);
   updateEntryLeadVisibility();
@@ -2204,8 +2174,6 @@ function saveConfig() {
     tieDuploSeco: $("tieDuploSeco")?.checked || false,
     cycleEnabled: isCycleEnabled(),
     tieDuploSecoChip: readCurrencyInput("tieDuploSecoChip"),
-    skipG1OnSequence: $("skipG1OnSequence")?.checked || false,
-    skipG1SequenceLength: skipG1SequenceLength(),
   };
   chrome.storage.local.set({ bacboConfig: config });
   syncEntryTimingStrategy();
@@ -2283,15 +2251,6 @@ function loadConfig() {
     if ($("cycleEnabled")) $("cycleEnabled").checked = !!c.cycleEnabled;
     renderCycleHint();
     setVal("tieDuploSecoChip", c.tieDuploSecoChip ?? 5);
-    if ($("skipG1OnSequence")) {
-      $("skipG1OnSequence").checked = c.skipG1OnSequence !== false;
-    }
-    if ($("skipG1SequenceLength")) {
-      const n = parseInt(c.skipG1SequenceLength, 10);
-      $("skipG1SequenceLength").value = Number.isFinite(n)
-        ? Math.min(8, Math.max(2, n))
-        : 3;
-    }
     updateTieDuploSecoHint();
     updateEntryLeadVisibility();
     syncEntryTimingStrategy();

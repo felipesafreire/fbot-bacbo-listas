@@ -80,7 +80,7 @@ const PatternGuard = (() => {
       strongSequence: raw.strongSequence !== false,
       strongSequenceLength: clampInteger(
         raw.strongSequenceLength,
-        3,
+        2,
         8,
         DEFAULT_CONFIG.strongSequenceLength,
       ),
