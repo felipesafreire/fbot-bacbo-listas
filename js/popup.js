@@ -26,6 +26,7 @@ const state = {
   cycleMult: 1, // ciclo: após red, próxima SG = último valor apostado x2 (multiplicador sobre a base); green volta a 1
   patternGuard: PatternGuard.normalizeConfig(PatternGuard.DEFAULT_CONFIG),
   bettingHouseId: "1win",
+  scheduleType: "none", // none | color | tie | mixed (lista carregada)
   bettingHouses: null, // cadastro do painel; null = casas padrão do HTML
 };
 
@@ -395,6 +396,8 @@ function renderGaleLevels() {
   if (!list) return;
   _ensureGaleLevels();
   const protect = !!$("tieProtection")?.checked;
+  // Coluna Empate só vale com proteção ligada ou lista com entradas de empate (🟠).
+  const tieOn = protect || state.scheduleType === "tie" || state.scheduleType === "mixed";
   let html = "";
   for (let i = 0; i <= state.galeMode; i++) {
     const lv = state.galeLevels[i];
@@ -402,7 +405,7 @@ function renderGaleLevels() {
       <div class="gale-level-row">
         <span class="gale-level-tag">${i === 0 ? "Entrada" : `G${i}`}</span>
         <input type="text" class="field-input gale-level-input" inputmode="numeric" data-step="${i}" data-kind="color" data-raw-value="${lv.color}" value="${formatCurrency(lv.color)}" aria-label="${galeStepLabel(i)} — valor na cor" />
-        <input type="text" class="field-input gale-level-input${protect ? "" : " gale-level-input--off"}" inputmode="numeric" data-step="${i}" data-kind="tie" data-raw-value="${lv.tie}" value="${formatCurrency(lv.tie)}" aria-label="${galeStepLabel(i)} — valor no empate" />
+        <input type="text" class="field-input gale-level-input" inputmode="numeric" data-step="${i}" data-kind="tie" data-raw-value="${lv.tie}" value="${formatCurrency(lv.tie)}" aria-label="${galeStepLabel(i)} — valor no empate"${tieOn ? "" : ' disabled title="Ligue Proteger empate para usar"'} />
       </div>`;
   }
   list.innerHTML = html;
@@ -588,6 +591,8 @@ function initCurrencyInputs() {
 
 /* ========== Lista carregada → aviso na aba Apostas ========== */
 function onScheduleTypeChanged(type) {
+  state.scheduleType = type;
+  renderGaleLevels();
   const noList = $("betNoList");
   if (noList) noList.style.display = type === "none" ? "block" : "none";
 }
@@ -650,7 +655,6 @@ function bindMainControls() {
     state.bettingHouseId = $("bettingHouse").value;
     saveConfig();
   });
-  $("chipProfile")?.addEventListener("change", saveConfig);
   $("fullscreenOnLoad")?.addEventListener("change", saveConfig);
 }
 
@@ -2018,7 +2022,6 @@ function saveConfig() {
     entryLeadSeconds: getEntryLeadSeconds(),
     patternGuard: readPatternGuardConfig(),
     bettingHouse: $("bettingHouse")?.value || state.bettingHouseId || "1win",
-    chipProfile: $("chipProfile")?.value || "bacbo_br",
     fullscreenOnLoad: $("fullscreenOnLoad")?.checked !== false,
     tieDuploSeco: $("tieDuploSeco")?.checked || false,
     cycleEnabled: isCycleEnabled(),
@@ -2082,10 +2085,6 @@ function loadConfig() {
     }
     if (c.bettingHouse) state.bettingHouseId = String(c.bettingHouse);
     renderHouseOptions();
-    if ($("chipProfile")) {
-      $("chipProfile").value =
-        c.chipProfile === "bacbo_en" ? "bacbo_en" : "bacbo_br";
-    }
     if ($("fullscreenOnLoad")) {
       $("fullscreenOnLoad").checked = c.fullscreenOnLoad !== false;
     }

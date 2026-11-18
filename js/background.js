@@ -1936,6 +1936,13 @@ const CHIP_PROFILES = {
     chipStep: 2.5,
     denominations: [2.5, 5, 25, 125, 500],
   },
+  /* Reserva quando não dá para ler as fichas na mesa: só as que existem nas duas. */
+  common: {
+    id: "common",
+    minChip: 5,
+    chipStep: 5,
+    denominations: [5, 25, 125, 500],
+  },
 };
 const CHIP_DENOMINATIONS = CHIP_PROFILES.bacbo_en.denominations;
 
@@ -2113,14 +2120,9 @@ function _parseBrlAmount(raw) {
   return Number.isFinite(n) ? n : null;
 }
 
+/* As fichas vêm da mesa (_readLiveChipProfile); o usuário não escolhe. */
 async function _getChipProfile() {
-  try {
-    const data = await chrome.storage.local.get("bacboConfig");
-    const id = data?.bacboConfig?.chipProfile;
-    return CHIP_PROFILES[id] || CHIP_PROFILES.bacbo_br;
-  } catch (_) {
-    return CHIP_PROFILES.bacbo_br;
-  }
+  return CHIP_PROFILES.common;
 }
 
 async function _readLiveChipProfile(tabId) {

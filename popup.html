@@ -127,13 +127,6 @@
           <option value="parimatch">Parimatch</option>
         </select>
       </label>
-      <label class="house-select">
-        <span>Fichas da mesa</span>
-        <select id="chipProfile" class="field-input">
-          <option value="bacbo_br">Bac Bo Brasileiro — 2,50 · 5 · 25 · 125 · 500</option>
-          <option value="bacbo_en">Bac Bo Inglês — 5 · 10 · 25 · 125 · 500 · 2500</option>
-        </select>
-      </label>
       <div class="toggle-row">
         <label class="toggle-label">
           Tela inteira ao carregar
@@ -323,7 +316,7 @@
         <div class="toggle-row">
           <label class="toggle-label" for="tieProtection">
             Proteger empate
-            <small class="toggle-hint">Na entrada de cor, aposta também no empate com o valor da coluna Empate. Listas só de empate (🟠) usam a coluna Empate como entrada.</small>
+            <small class="toggle-hint">Na entrada de cor, aposta também no empate com o valor da coluna Empate. Desligado, a coluna Empate fica bloqueada (a não ser que a lista tenha entradas só de empate 🟠).</small>
           </label>
           <label class="switch">
             <input type="checkbox" id="tieProtection" />
@@ -585,16 +578,14 @@
           </div>
         </div>
 
-        <div class="info-box">
-          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-info"></use></svg>
-          Os valores e quantidade de gales são configurados na aba
-          <strong>Apostas</strong>.
-        </div>
 
-        <button class="btn-secondary" id="btnSaveConfig">
-          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-save"></use></svg> Salvar Configurações
-        </button>
       </section>
+      <!-- Sempre visível no rodapé da aba (a maioria dos campos já salva ao mudar) -->
+      <div class="config-save-bar">
+        <button type="button" class="btn-execute" id="btnSaveConfig">
+          <svg class="ic" aria-hidden="true" focusable="false"><use href="#fbot-i-save"></use></svg> Salvar configurações
+        </button>
+      </div>
     </div>
 
     <!-- Tab: Histórico -->

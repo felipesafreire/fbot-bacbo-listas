@@ -2813,19 +2813,7 @@ h1, h2, h3, .card-title { font-family: var(--font-display); letter-spacing: -0.0
 }
 
 .gale-level-input {
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  padding: 7px 10px;
   min-width: 0;
-}
-
-/* Proteção desligada: a coluna Empate só vale para listas de empate (🟠) */
-.gale-level-input--off {
-  opacity: 0.6;
-}
-
-.gale-level-input--off:focus {
-  opacity: 1;
 }
 
 
@@ -2980,4 +2968,87 @@ h1, h2, h3, .card-title { font-family: var(--font-display); letter-spacing: -0.0
 .balance-value--muted {
   color: var(--text-muted);
   font-weight: 600;
+}
+
+/* ══ Campos: um só desenho para texto, número, valor e select ══ */
+.field-input,
+.pattern-rule-controls input[type="number"] {
+  height: 38px;
+  padding: 0 12px;
+  background: var(--fill);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+select.field-input {
+  font-family: var(--font);
+  cursor: pointer;
+}
+
+textarea.field-input {
+  height: auto;
+  padding: 10px 12px;
+}
+
+.currency-input {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.input-prefix {
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+}
+
+.pattern-rule-controls input[type="number"] {
+  width: 52px;
+  height: 32px;
+  padding: 0 6px;
+  text-align: center;
+}
+
+.field-input:hover:not(:disabled):not(:focus),
+.pattern-rule-controls input[type="number"]:hover:not(:focus) {
+  border-color: var(--line-strong);
+}
+
+.field-input:focus,
+.pattern-rule-controls input[type="number"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus);
+  background: var(--bg-card);
+}
+
+.field-input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (min-width: 680px) {
+  .field-input {
+    font-size: 14px;
+  }
+}
+
+/* Salvar configurações: fixo no rodapé da aba */
+.config-save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin: 12px -12px -12px;
+  padding: 10px 12px;
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+}
+
+.config-save-bar .btn-execute {
+  width: 100%;
 }
