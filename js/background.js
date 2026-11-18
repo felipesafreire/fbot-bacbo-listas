@@ -1307,10 +1307,7 @@ chrome.webNavigation.onCompleted.addListener((details) => {
     } catch (_) {}
   })();
 });
-const POPOUT_URL = chrome.runtime.getURL("popup.html?popout=1");
-let _popoutWindowId = null;
 let _sidePanelReady = false;
-let _fallbackClickBound = false;
 
 /* ========== Instalação ========== */
 chrome.runtime.onConnect.addListener((port) => {
@@ -1319,23 +1316,12 @@ chrome.runtime.onConnect.addListener((port) => {
   }
 });
 
-chrome.windows.onRemoved.addListener((windowId) => {
-  if (windowId === _popoutWindowId) _popoutWindowId = null;
-});
-
-function _bindFallbackActionClick() {
-  if (_fallbackClickBound) return;
-  _fallbackClickBound = true;
-  chrome.action.onClicked.addListener(() => {
-    _openPopoutWindow();
-  });
-}
 
 async function _initSidePanel() {
   if (_sidePanelReady) return;
 
   if (!chrome.sidePanel?.setPanelBehavior) {
-    _bindFallbackActionClick();
+    console.warn("[BacList] Chrome sem painel lateral: atualize o navegador.");
     _sidePanelReady = true;
     return;
   }
@@ -1346,48 +1332,8 @@ async function _initSidePanel() {
     _sidePanelReady = true;
   } catch (e) {
     console.warn("[BacList] sidePanel:", e?.message || e);
-    _bindFallbackActionClick();
     _sidePanelReady = true;
   }
-}
-
-/* A janela flutuante substitui o painel lateral: só uma cópia da automação
-   pode rodar (histórico, apostas e comandos do Telegram). */
-async function _findPopoutWindowId() {
-  if (_popoutWindowId != null) {
-    try {
-      await chrome.windows.get(_popoutWindowId);
-      return _popoutWindowId;
-    } catch (_) {
-      _popoutWindowId = null;
-    }
-  }
-  // O service worker pode ter reiniciado: procura a janela pela URL.
-  try {
-    const wins = await chrome.windows.getAll({ populate: true, windowTypes: ["popup"] });
-    const hit = wins.find((w) => (w.tabs || []).some((t) => (t.url || "").startsWith(POPOUT_URL)));
-    if (hit) _popoutWindowId = hit.id;
-  } catch (_) {}
-  return _popoutWindowId;
-}
-
-async function _openPopoutWindow({ resume = false } = {}) {
-  const existing = await _findPopoutWindowId();
-  if (existing != null) {
-    await chrome.windows.update(existing, { focused: true, drawAttention: true });
-    return { success: true, windowId: existing, focused: true };
-  }
-
-  const win = await chrome.windows.create({
-    url: POPOUT_URL + (resume ? "&resume=1" : ""),
-    type: "popup",
-    width: 420,
-    height: 780,
-    focused: true,
-  });
-
-  _popoutWindowId = win.id;
-  return { success: true, windowId: win.id, focused: false };
 }
 
 _initSidePanel();
@@ -1527,25 +1473,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   // Janela flutuante persistente (não fecha ao clicar no jogo)
-  if (msg.action === "focusPopoutIfOpen") {
-    _findPopoutWindowId()
-      .then(async (id) => {
-        if (id == null) return sendResponse({ open: false });
-        await chrome.windows.update(id, { focused: true, drawAttention: true }).catch(() => {});
-        sendResponse({ open: true, windowId: id });
-      })
-      .catch(() => sendResponse({ open: false }));
-    return true;
-  }
-
-  if (msg.action === "openPopoutWindow") {
-    _openPopoutWindow({ resume: !!msg.resume })
-      .then((r) => sendResponse(r))
-      .catch((e) =>
-        sendResponse({ success: false, error: e?.message || String(e) }),
-      );
-    return true;
-  }
 
   // Leitura sob demanda (popup aberto — mais confiável que só o service worker)
   if (msg.action === "fetchLiveHistory") {
