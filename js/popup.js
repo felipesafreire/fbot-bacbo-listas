@@ -775,21 +775,37 @@ function notifyBot(type, meta = {}) {
 function notifyBotWithBalance(type, meta = {}) {
   notifyBot(type, async () => {
     const base = typeof meta === "function" ? await meta() : meta;
+    if (base && base.balance != null) return base;
     const balance = await readBanca();
     return balance != null ? { ...base, balance: roundMoney(balance) } : base;
   });
 }
 
-/** Resumo da sessão para "Automação desligada". Lido na hora do envio. */
+/**
+ * Resumo da sessão para "Automação desligada". Igual ao Automático: o lucro é
+ * a banca atual menos a banca do início da automação. Stop win/loss dispara
+ * logo após o resultado, então espera a mesa pagar antes de ler o saldo.
+ */
 function notifySummary(reason) {
-  return () => ({
-    reason: reason || "manual",
-    entries: _notifyStats.entries,
-    wins: _notifyStats.wins,
-    losses: _notifyStats.losses,
-    ties: _notifyStats.ties,
-    pnl: Math.round((state.totalPnl - _notifyStats.startPnl) * 100) / 100,
-  });
+  return async () => {
+    const meta = {
+      reason: reason || "manual",
+      entries: _notifyStats.entries,
+      wins: _notifyStats.wins,
+      losses: _notifyStats.losses,
+      ties: _notifyStats.ties,
+    };
+    const wait = BALANCE_SETTLE_MS - (Date.now() - _lastResultAt);
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    const balance = await readBanca({ retries: 4, delayMs: 300 });
+    if (balance != null) meta.balance = roundMoney(balance);
+    if (balance != null && _banca.initial != null) {
+      meta.pnl = roundMoney(balance - _banca.initial);
+    } else {
+      meta.pnl = roundMoney(state.totalPnl - _notifyStats.startPnl);
+    }
+    return meta;
+  };
 }
 
 /* ========== Banca (saldo da conta na mesa) — igual ao Automático ========== */
@@ -799,6 +815,7 @@ const BALANCE_SETTLE_MS = 3500;
 const _banca = { current: null, initial: null };
 let _bancaTimer = null;
 let _lastPlacedAt = 0;
+let _lastResultAt = 0;
 
 function roundMoney(n) {
   return Math.round(Number(n) * 100) / 100;
@@ -875,10 +892,13 @@ function startBancaRefresh() {
 /** Depois que a rodada paga, manda o saldo atualizado (igual ao Automático). */
 function notifyBalanceAfterSettle() {
   const waitStarted = Date.now();
+  _lastResultAt = waitStarted;
   setTimeout(async () => {
     const balance = await readBanca({ retries: 4, delayMs: 300 });
     // Outra aposta saiu no meio da espera: o saldo já está descontado dela.
     if (balance == null || _lastPlacedAt > waitStarted) return;
+    // Automação desligada no meio da espera (stop win/loss): o saldo vai no resumo.
+    if (!state.autoMode) return;
     notifyBot("entry_result", { balance: roundMoney(balance) });
   }, BALANCE_SETTLE_MS);
 }
