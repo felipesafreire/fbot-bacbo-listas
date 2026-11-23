@@ -8,4 +8,4 @@ Extensão Chrome MV3 na raiz (`manifest.json`, `popup.html`, `js/`). Entradas po
 
 ## Regras
 
-Em `.claude/rules/` (copiadas de `.cursor/rules/`; ao mudar uma, mudar as duas). Sempre carregadas: `worktree` (toda tarefa num `git worktree` próprio) e `extension-update` — patch no manifest + `node scripts/pack-extension.js` ao alterar a extensão.
+Em `.claude/rules/` (copiadas de `.cursor/rules/`; ao mudar uma, mudar as duas). Sempre carregadas: `worktree` (toda tarefa num `git worktree` próprio), `shared-products` (todo código comum vai também para `/home/felipe/neurolista`) e `extension-update` — patch no manifest + `node scripts/pack-extension.js` ao alterar a extensão.
