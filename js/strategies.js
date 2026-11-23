@@ -64,6 +64,9 @@ const Strategies = (() => {
   const ENTRY_TRIGGER_GRACE_MS = 70000; // uma janela de rodada; evita disparar entrada antiga acumulada
   const ENTRY_PREFLIGHT_MS = 2 * 60 * 1000;
   const ENTRY_PREFLIGHT_CUTOFF_MS = 15 * 1000;
+  // Entrada com outra até 5 min antes não reabre o jogo: a anterior (ou o gale dela)
+  // pode estar em andamento na hora da reabertura.
+  const ENTRY_PREFLIGHT_NEIGHBOR_MS = 5 * 60 * 1000;
   let _lastTickDate = null;
   let _patternGuardConfig = PatternGuard.normalizeConfig(
     PatternGuard.DEFAULT_CONFIG,
@@ -496,6 +499,26 @@ const Strategies = (() => {
         );
         continue;
       }
+
+      const neighbor = _schedule.find((other) => {
+        if (other === entry || _entryKey(other) === key) return false;
+        const otherMs = _entryTriggerDateTime(other, now).getTime();
+        return (
+          otherMs < triggerMs && triggerMs - otherMs <= ENTRY_PREFLIGHT_NEIGHBOR_MS
+        );
+      });
+      if (neighbor) {
+        _preflightKeys.add(key);
+        console.warn(
+          "[BacList][Pré-entrada] Reabertura ignorada: entrada",
+          _entryKey(neighbor),
+          "a menos de 5 min antes de",
+          key,
+        );
+        continue;
+      }
+
+      if (_activeSlotKey || _firingSignal) continue;
 
       if (typeof _pendingBet !== "undefined" && _pendingBet?.awaiting) {
         continue;
