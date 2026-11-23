@@ -1,8 +1,15 @@
 /* Login do Bac Bo Listas no painel. Uma sessão por computador. */
 "use strict";
 
+// Nome da marca nos pontos marcados com data-brand-name.
+document.addEventListener("DOMContentLoaded", () => {
+  const name = window.BRAND && window.BRAND.name;
+  if (!name) return;
+  document.querySelectorAll("[data-brand-name]").forEach((el) => { el.textContent = name; });
+});
+
 const BacListAuth = (() => {
-  const API_BASE = "https://fbotcassino.com.br";
+  const API_BASE = (window.BRAND && window.BRAND.apiBase) || "https://fbotcassino.com.br";
   const PRODUCT = "listas";
   const HEARTBEAT_MS = 15000;
 
