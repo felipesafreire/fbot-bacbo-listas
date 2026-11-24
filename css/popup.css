@@ -1468,6 +1468,7 @@ body.is-popout .tab-content {
 
 /* --- Proteção por padrões --- */
 .pattern-guard-card {
+  container-type: inline-size;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-card-deep);
@@ -1479,7 +1480,7 @@ body.is-popout .tab-content {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px;
+  padding: 12px 14px;
 }
 
 .pattern-guard-head > div {
@@ -1494,61 +1495,81 @@ body.is-popout .tab-content {
   align-items: center;
   gap: 7px;
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .pattern-guard-head strong i,
 .pattern-guard-head strong .ic {
   color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.pattern-guard-head .switch {
+  flex: 0 0 auto;
 }
 
 .pattern-guard-head small,
 .custom-patterns-title small,
 .pattern-rule small {
   color: var(--text-muted);
-  font-size: 9px;
-  line-height: 1.35;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
+/* Uma coluna em tela estreita; duas só quando cada regra tem ~200px. */
 .pattern-guard-body {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
-  padding: 0 12px 12px;
+  padding: 12px 14px 14px;
   border-top: 1px solid var(--border);
-  padding-top: 12px;
+}
+
+@container (min-width: 440px) {
+  .pattern-guard-body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .pattern-guard-body.is-disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   pointer-events: none;
 }
 
 .pattern-rule {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
   min-width: 0;
-  padding: 9px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--fill);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.pattern-rule:hover {
+  border-color: var(--line-strong, var(--border));
+}
+
+.pattern-rule:has(> input:checked) {
+  border-color: rgba(47, 140, 255, 0.35);
 }
 
 .pattern-rule > input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   margin: 1px 0 0;
   accent-color: var(--accent);
-  flex: 0 0 auto;
+  cursor: pointer;
 }
 
 .pattern-rule-content {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 2px;
-  flex: 1;
+  gap: 3px;
 }
 
 .pattern-rule-content > label {
@@ -1557,38 +1578,48 @@ body.is-popout .tab-content {
 
 .pattern-rule strong {
   color: var(--text-primary);
-  font-size: 10px;
+  font-size: 12px;
+  line-height: 1.3;
 }
 
 .pattern-rule-controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 5px;
-  margin-top: 6px;
+  gap: 6px 8px;
+  margin-top: 8px;
+}
+
+.pattern-rule:has(> input:not(:checked)) .pattern-rule-controls {
+  opacity: 0.45;
 }
 
 .pattern-rule-controls label {
   color: var(--text-secondary);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .pattern-rule-controls input[type="number"] {
-  width: 50px;
-  height: 28px;
-  padding: 3px 6px;
+  width: 56px;
+  height: 32px;
+  padding: 4px 6px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-card);
   color: var(--text-primary);
-  font-size: 10px;
+  font-family: var(--mono, inherit);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
   font-weight: 700;
   text-align: center;
 }
 
-.pattern-rule-controls.two-values input[type="number"] {
-  width: 42px;
+.pattern-rule-controls input[type="number"]:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus, 0 0 0 2px rgba(47, 140, 255, 0.35));
 }
 
 .custom-patterns {
@@ -1607,7 +1638,7 @@ body.is-popout .tab-content {
 
 .custom-patterns-title strong {
   color: var(--text-primary);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .pattern-builder {
@@ -1630,18 +1661,18 @@ body.is-popout .tab-content {
 .pattern-builder-empty,
 .custom-pattern-empty {
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .pattern-dot {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   color: #fff;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 800;
   flex: 0 0 auto;
 }
@@ -1659,6 +1690,7 @@ body.is-popout .tab-content {
   display: flex;
   align-items: center;
   gap: 7px;
+  flex-wrap: wrap;
 }
 
 .pattern-color-btn,
@@ -1670,7 +1702,7 @@ body.is-popout .tab-content {
   border-radius: var(--radius-sm);
   background: var(--fill);
   color: var(--text-primary);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -1704,7 +1736,7 @@ body.is-popout .tab-content {
 
 .pattern-builder-save label {
   color: var(--text-secondary);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -1747,14 +1779,14 @@ body.is-popout .tab-content {
 }
 
 .custom-pattern-item .pattern-dot {
-  width: 17px;
-  height: 17px;
-  font-size: 7px;
+  width: 20px;
+  height: 20px;
+  font-size: 9px;
 }
 
 .custom-pattern-expected {
   color: var(--text-secondary);
-  font-size: 9px;
+  font-size: 11px;
   white-space: nowrap;
 }
 
