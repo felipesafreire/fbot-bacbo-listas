@@ -1226,9 +1226,32 @@ const DEFAULT_BETTING_HOUSES = [
 ];
 let _bettingHouses = DEFAULT_BETTING_HOUSES;
 
+/** URLs https da casa por jogo (bacbo_en, bacbo_br). Cadastro antigo só tem url. */
+function _houseUrls(house) {
+  const out = {};
+  if (house && house.urls && typeof house.urls === "object") {
+    for (const [game, url] of Object.entries(house.urls)) {
+      if (typeof url === "string" && /^https:\/\//i.test(url)) out[game] = url;
+    }
+  }
+  return out;
+}
+
+/** Link da casa para o jogo; sem urls por jogo, usa a url única de antes. */
+function _houseUrlForGame(house, gameId) {
+  const urls = _houseUrls(house);
+  if (!Object.keys(urls).length) return /^https:\/\//i.test(house?.url || "") ? house.url : null;
+  return urls[gameId] || null;
+}
+
 function _setBettingHouses(list) {
   const valid = Array.isArray(list)
-    ? list.filter((h) => h && typeof h.id === "string" && /^https:\/\//i.test(h.url || ""))
+    ? list.filter(
+        (h) =>
+          h &&
+          typeof h.id === "string" &&
+          (/^https:\/\//i.test(h.url || "") || Object.keys(_houseUrls(h)).length > 0),
+      )
     : [];
   _bettingHouses = valid.length ? valid : DEFAULT_BETTING_HOUSES;
 }
@@ -1252,7 +1275,9 @@ function _houseFromUrl(url) {
   const current = _normalizeGameUrl(url);
   return (
     _bettingHouses.find((house) =>
-      current.startsWith(_normalizeGameUrl(house.url)),
+      [house.url, ...Object.values(_houseUrls(house))]
+        .filter(Boolean)
+        .some((url) => current.startsWith(_normalizeGameUrl(url))),
     ) || null
   );
 }
@@ -1262,9 +1287,12 @@ async function _getBettingHouse() {
     const data = await chrome.storage.local.get(["bacboConfig", "bettingHouses"]);
     _setBettingHouses(data?.bettingHouses);
     const id = data?.bacboConfig?.bettingHouse;
-    return _bettingHouses.find((h) => h.id === id) || _bettingHouses[0];
+    const gameId = data?.bacboConfig?.gameId === "bacbo_en" ? "bacbo_en" : "bacbo_br";
+    const house = _bettingHouses.find((h) => h.id === id) || _bettingHouses[0];
+    return { ...house, gameId, gameUrl: _houseUrlForGame(house, gameId) };
   } catch (_) {
-    return _bettingHouses[0];
+    const house = _bettingHouses[0];
+    return { ...house, gameId: "bacbo_br", gameUrl: _houseUrlForGame(house, "bacbo_br") };
   }
 }
 
@@ -1802,7 +1830,11 @@ async function _reopenBacBoGame(preferredTabId = null) {
     tabId = tabs.find((t) => t.id && _houseFromUrl(t.url || ""))?.id || null;
   }
 
-  const url = house.url;
+  const url = house.gameUrl;
+  if (!url) {
+    const game = house.gameId === "bacbo_en" ? "Bac Bo Inglês" : "Bac Bo Brasileiro";
+    return { success: false, error: `${house.nome || "A casa"} não tem link do ${game}. Escolha outra casa.` };
+  }
   try {
     if (!tabId) {
       const created = await chrome.tabs.create({ url, active: true });

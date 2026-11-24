@@ -607,6 +607,8 @@ function bindGamePicker() {
     const input = e.target.closest(".game-picker-input");
     if (!input || !GAME_PROFILES[input.value]) return;
     state.gameId = input.value;
+    // Casas sem o link deste jogo ficam desabilitadas na lista.
+    renderHouseOptions();
     // Revalida os valores com a ficha nova (ex.: 2,50 no inglês vira 5).
     state.galeLevels = state.galeLevels.map((lv) => ({ color: snapChip(lv.color), tie: snapChip(lv.tie) }));
     renderGaleLevels();
@@ -908,9 +910,34 @@ const NOTIFY_SIDE = { A: "player", V: "banker", T: "tie" };
 /* ========== Casas de aposta (cadastro do admin no painel) ========== */
 let _configLoaded = false;
 
+/** URLs https da casa por jogo; cadastro antigo (só url) vale para todos os jogos. */
+function _houseUrls(h) {
+  const out = {};
+  if (h && h.urls && typeof h.urls === "object") {
+    for (const [game, url] of Object.entries(h.urls)) {
+      if (typeof url === "string" && /^https:\/\//i.test(url)) out[game] = url;
+    }
+  }
+  return out;
+}
+
+/** Link da casa para o jogo; null quando a casa não tem esse jogo. */
+function houseUrlForGame(h, gameId) {
+  const urls = _houseUrls(h);
+  if (!Object.keys(urls).length) return /^https:\/\//i.test(h?.url || "") ? h.url : null;
+  return urls[gameId] || null;
+}
+
 function _validHouses(list) {
   return Array.isArray(list)
-    ? list.filter((h) => h && typeof h.id === "string" && h.id && typeof h.nome === "string" && /^https:\/\//i.test(h.url || ""))
+    ? list.filter(
+        (h) =>
+          h &&
+          typeof h.id === "string" &&
+          h.id &&
+          typeof h.nome === "string" &&
+          (/^https:\/\//i.test(h.url || "") || Object.keys(_houseUrls(h)).length > 0),
+      )
     : [];
 }
 
@@ -923,18 +950,21 @@ function renderHouseOptions() {
     for (const h of houses) {
       const opt = document.createElement("option");
       opt.value = h.id;
-      opt.textContent = h.nome;
+      const hasGame = !!houseUrlForGame(h, state.gameId);
+      // Casa sem o link do jogo escolhido fica visível, mas não pode ser usada.
+      opt.textContent = hasGame ? h.nome : `${h.nome} (sem ${gameProfile().label})`;
+      opt.disabled = !hasGame;
       select.appendChild(opt);
     }
   }
-  const ids = Array.from(select.options).map((o) => o.value);
-  if (ids.includes(state.bettingHouseId)) {
+  const usable = Array.from(select.options).filter((o) => !o.disabled).map((o) => o.value);
+  if (usable.includes(state.bettingHouseId)) {
     select.value = state.bettingHouseId;
-  } else if (ids.length) {
-    // Casa removida ou desligada no painel: passa para a primeira da lista.
+  } else if (usable.length) {
+    // Casa removida, desligada no painel ou sem o jogo escolhido: passa para a primeira que tem.
     const hadChoice = !!state.bettingHouseId;
-    state.bettingHouseId = ids[0];
-    select.value = ids[0];
+    state.bettingHouseId = usable[0];
+    select.value = usable[0];
     // Só grava depois que a config foi lida, para não sobrescrever com o padrão.
     if (hadChoice && houses.length && _configLoaded) saveConfig();
   }
@@ -958,6 +988,7 @@ async function fetchBettingHouses() {
       id: h.id,
       nome: h.nome,
       url: h.url,
+      urls: _houseUrls(h),
       clickPlay: !!h.clickPlay,
     }));
     if (!houses.length) return;
