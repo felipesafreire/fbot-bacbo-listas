@@ -2,7 +2,9 @@
    Canônico: bacbo-bot-entradas/public/assets/fbot-icons.js
    As extensões guardam cópia idêntica; editar aqui e copiar.
    Uso: <svg class="ic" aria-hidden="true"><use href="#fbot-i-NOME"></use></svg>
-        ou fbotIcon('NOME') em JS. */
+        ou fbotIcon('NOME') em JS.
+   Também põe o botão de mostrar/ocultar (olho) em todo input[type=password]
+   (estilo .fb-pw em fbot-tokens.css). data-no-reveal no input desliga. */
 (function () {
     'use strict';
     var ICONS = {
@@ -65,7 +67,9 @@
         'delete': '<path d="M10 5h11v14H10l-7-7z"/><path d="m18 9-6 6M12 9l6 6"/>',
         'external': '<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
         'contrast': '<circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor"/>',
-        'history': '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>'
+        'history': '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+        'eye': '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+        'eye-off': '<path d="M10.7 5.1A10.9 10.9 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-2.2 3.2M6.6 6.6A17.4 17.4 0 0 0 2 12s3.6 7 10 7a10.7 10.7 0 0 0 5.4-1.4"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M2 2l20 20"/>'
     };
 
     function inject() {
@@ -84,6 +88,67 @@
     };
     window.FBOT_ICON_NAMES = Object.keys(ICONS);
 
-    if (document.body) inject();
-    else document.addEventListener('DOMContentLoaded', inject);
+    /* ---------- Campos de senha: botão olho para mostrar/ocultar ---------- */
+    function wirePassword(input) {
+        if (input.dataset.fbPw || input.hasAttribute('data-no-reveal') || input.hidden) return;
+        input.dataset.fbPw = '1';
+        var cs = window.getComputedStyle(input);
+        var wrap = document.createElement('span');
+        wrap.className = 'fb-pw';
+        // Mantém o tamanho que o input tinha numa linha flex (ex.: código + 2FA no Telegram).
+        wrap.style.flex = cs.flex;
+        if (cs.minWidth && cs.minWidth !== 'auto' && cs.minWidth !== '0px') wrap.style.minWidth = cs.minWidth;
+        if (cs.display === 'none') wrap.style.display = 'none';
+        input.parentNode.insertBefore(wrap, input);
+        wrap.appendChild(input);
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'fb-pw-toggle';
+        btn.tabIndex = 0;
+        function render(shown) {
+            btn.innerHTML = window.fbotIcon(shown ? 'eye-off' : 'eye');
+            btn.setAttribute('aria-label', shown ? 'Ocultar senha' : 'Mostrar senha');
+            btn.setAttribute('title', shown ? 'Ocultar senha' : 'Mostrar senha');
+            btn.setAttribute('aria-pressed', shown ? 'true' : 'false');
+        }
+        render(false);
+        btn.addEventListener('click', function () {
+            var show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            render(show);
+            input.focus();
+        });
+        // Ao enviar o formulário volta a ocultar (o navegador não guarda a senha como texto).
+        if (input.form) {
+            input.form.addEventListener('submit', function () {
+                if (input.type === 'text') { input.type = 'password'; render(false); }
+            });
+        }
+        wrap.appendChild(btn);
+    }
+
+    function wireAll(root) {
+        if (!root || !root.querySelectorAll) return;
+        if (root.matches && root.matches('input[type="password"]')) wirePassword(root);
+        var list = root.querySelectorAll('input[type="password"]');
+        for (var i = 0; i < list.length; i++) wirePassword(list[i]);
+    }
+
+    function start() {
+        inject();
+        wireAll(document.body);
+        // Modais e telas montadas por JS depois do carregamento.
+        new MutationObserver(function (records) {
+            for (var i = 0; i < records.length; i++) {
+                var added = records[i].addedNodes;
+                for (var j = 0; j < added.length; j++) {
+                    if (added[j].nodeType === 1) wireAll(added[j]);
+                }
+            }
+        }).observe(document.body, { childList: true, subtree: true });
+    }
+
+    if (document.body && document.readyState !== 'loading') start();
+    else document.addEventListener('DOMContentLoaded', start);
 })();

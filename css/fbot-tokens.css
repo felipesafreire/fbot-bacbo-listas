@@ -139,3 +139,30 @@
         scroll-behavior: auto !important;
     }
 }
+
+/* Campo de senha com botão olho (montado por fbot-icons.js). */
+.fb-pw { position: relative; display: block; width: 100%; min-width: 0; }
+.fb-pw > input { width: 100%; box-sizing: border-box; padding-right: 42px !important; }
+.fb-pw > input::-ms-reveal,
+.fb-pw > input::-ms-clear { display: none; }
+.fb-pw-toggle {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-3, #7a86a0);
+    cursor: pointer;
+    transition: color .15s ease, background-color .15s ease;
+}
+.fb-pw-toggle:hover { color: var(--text, #eaf0fa); background: rgba(130, 170, 255, 0.08); }
+.fb-pw-toggle:focus-visible { outline: none; color: var(--text, #eaf0fa); box-shadow: var(--focus); }
+.fb-pw-toggle[aria-pressed="true"] { color: var(--brand-hi, #5aa8ff); }
+.fb-pw-toggle .ic { width: 18px; height: 18px; }
