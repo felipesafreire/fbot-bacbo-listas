@@ -2731,8 +2731,29 @@ body.auth-pending > :not(.auth-overlay) {
 }
 
 .header-user[hidden],
+.header-plan[hidden],
 #logoutBtn[hidden] {
   display: none !important;
+}
+
+.header-account {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.header-plan {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.header-plan.is-warn {
+  color: var(--warn);
 }
 
 .header-user {

@@ -182,6 +182,27 @@ const Strategies = (() => {
     return "mixed";
   }
 
+  /**
+   * /inserirlista do Telegram: mesmo efeito do botão Salvar.
+   * Devolve quantas entradas foram reconhecidas; com 0, a lista atual fica.
+   */
+  function _importScheduleText(rawText) {
+    const text = String(rawText || "").replace(/\r\n?/g, "\n").trim();
+    const parsed = _parseScheduleText(text);
+    if (parsed.length === 0) return 0;
+
+    const textarea = $("scheduleInput");
+    if (textarea) textarea.value = text;
+    _schedule = parsed;
+    _preflightKeys.clear();
+    _preflightRequests.clear();
+    _scheduleType = _detectScheduleType(_schedule);
+    _saveSchedule(text);
+    _renderSchedulePreview();
+    _notifyScheduleType();
+    return _schedule.length;
+  }
+
   /* ══════════════════════════════════════════════════════
      BIND UI — LISTA DE HORÁRIOS
   ══════════════════════════════════════════════════════ */
@@ -1074,6 +1095,7 @@ const Strategies = (() => {
     stopMonitor: _stopMonitor,
     getPatterns: () => _schedule,
     getScheduleType: () => _scheduleType,
+    importScheduleText: _importScheduleText,
     setEntryTiming: _setEntryTiming,
     setPatternGuardConfig: (config) => {
       _patternGuardConfig = PatternGuard.normalizeConfig(config);

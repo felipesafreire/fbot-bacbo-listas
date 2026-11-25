@@ -268,6 +268,7 @@ const BacListAuth = (() => {
     downloadRelease,
     isLoggedIn,
     username,
+    license: () => auth?.license || null,
     takeNotice,
     login,
     logout,

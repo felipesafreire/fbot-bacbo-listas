@@ -1,5 +1,5 @@
 /* Comandos do bot do Telegram no Bac Bo Listas: /status, /ligar, /parar,
-   /resetarplacar, /alterarmeta e /alterarstoploss chegam pelo painel (/api/extension/commands/*),
+   /resetarplacar, /alterarmeta, /alterarstoploss e /inserirlista chegam pelo painel (/api/extension/commands/*),
    mesmo contrato do Bac Bo Automático. Roda no side panel, junto da automação.
    Avisos de entrada/resultado vão por /api/bot/notify, igual ao Automático. */
 "use strict";
@@ -14,6 +14,7 @@ const BacListTelegram = (() => {
     "resetarplacar",
     "alterarmeta",
     "alterarstoploss",
+    "inserirlista",
   ]);
 
   /** @type {((action: string, payload: string|null) => Promise<{ ok?: boolean, text?: string }>) | null} */

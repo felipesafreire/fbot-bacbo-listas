@@ -184,6 +184,7 @@ function showAuthScreen(message) {
   const headerUser = $("headerUser");
   if (logoutBtn) logoutBtn.hidden = true;
   if (headerUser) headerUser.hidden = true;
+  renderHeaderPlan();
   const err = $("authError");
   if (!err) return;
   if (message) {
@@ -206,6 +207,24 @@ function hideAuthScreen() {
     headerUser.hidden = name === "";
   }
   if (logoutBtn) logoutBtn.hidden = false;
+  renderHeaderPlan();
+}
+
+/* Vencimento do plano no cabeçalho; o heartbeat atualiza a licença, então relê a cada minuto. */
+let _headerPlanTimer = null;
+function renderHeaderPlan() {
+  const el = $("headerPlan");
+  if (!el) return;
+  const license = BacListAuth.isLoggedIn() ? BacListAuth.license() : null;
+  if (!license) {
+    el.hidden = true;
+    return;
+  }
+  const plan = LicenseExpiry.describe(license.license_expires_at);
+  el.textContent = plan.label;
+  el.classList.toggle("is-warn", plan.warn);
+  el.hidden = false;
+  if (!_headerPlanTimer) _headerPlanTimer = setInterval(renderHeaderPlan, 60000);
 }
 
 function onAuthLost(message) {
@@ -2424,6 +2443,17 @@ async function executeTelegramCommand(action, payload = null) {
       ok: true,
       text: stopLoss === 0 ? "ℹ️ Stop Loss desligado." : `ℹ️ Stop Loss da sessão: ${formatCurrency(stopLoss)}`,
     };
+  }
+  if (action === "inserirlista") {
+    if (state.autoMode) {
+      return { ok: false, text: "⚠️ Pare a automação (/parar) antes de trocar a lista." };
+    }
+    const count = Strategies.importScheduleText(payload);
+    if (count === 0) {
+      return { ok: false, text: "⚠️ Nenhuma entrada reconhecida. A lista atual foi mantida." };
+    }
+    showToast(`Lista do Telegram: ${count} entrada(s)`, "success");
+    return { ok: true, text: `✅ ${count} entrada(s) carregadas` };
   }
   if (action === "ligar") {
     if (state.autoMode) return { ok: true, text: "ℹ️ A automação já está ligada." };
