@@ -2361,6 +2361,7 @@ function tgPlacarLines() {
 
 async function tgStatusText() {
   const stopWin = parseFloat($("stopWin")?.value) || 0;
+  const stopLoss = parseFloat($("stopLoss")?.value) || 0;
   const lido = await readBanca({ retries: 4, delayMs: 300 });
   const lines = [
     state.autoMode ? "▶️ Automação ligada (Bac Bo Listas)" : "⏹ Automação desligada (Bac Bo Listas)",
@@ -2378,6 +2379,7 @@ async function tgStatusText() {
     `🎯 Entradas: ${state.betCount}`,
     ...tgPlacarLines(),
     `🏁 Stop Win: ${stopWin > 0 ? formatCurrency(stopWin) : "desligado"}`,
+    `🛑 Stop Loss: ${stopLoss > 0 ? formatCurrency(stopLoss) : "desligado"}`,
   );
   if (_pendingBet?.awaiting) lines.push("⏳ Aposta aguardando resultado");
   if (_releaseInfo?.available && _releaseInfo.latest) {
@@ -2407,6 +2409,20 @@ async function executeTelegramCommand(action, payload = null) {
     return {
       ok: true,
       text: stopWin === 0 ? "ℹ️ Stop Win desligado." : `ℹ️ Stop Win da sessão: ${formatCurrency(stopWin)}`,
+    };
+  }
+  if (action === "alterarstoploss") {
+    const value = Number(String(payload ?? "").replace(",", "."));
+    if (!Number.isFinite(value) || value < 0 || value > 999999.99) {
+      return { ok: false, text: "⚠️ Valor de Stop Loss inválido." };
+    }
+    const stopLoss = Math.round(value * 100) / 100;
+    if ($("stopLoss")) $("stopLoss").value = stopLoss;
+    saveConfig();
+    showToast(stopLoss === 0 ? "Stop Loss desligado" : `Stop Loss: ${formatCurrency(stopLoss)}`, "info");
+    return {
+      ok: true,
+      text: stopLoss === 0 ? "ℹ️ Stop Loss desligado." : `ℹ️ Stop Loss da sessão: ${formatCurrency(stopLoss)}`,
     };
   }
   if (action === "ligar") {
