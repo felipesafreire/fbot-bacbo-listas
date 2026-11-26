@@ -1052,8 +1052,15 @@ async function _exitPageFullscreen(tabId) {
 async function _pollGameFullscreen(tabId, timeoutMs) {
   const start = Date.now();
   let lastReason = "";
+  // Só casas com "clicar em jogar" (1Win). Nas outras, o "Jogar" da página é de
+  // outro jogo (cards de jogos relacionados) e tiraria a aba do Bac Bo.
+  let clickPlay = false;
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    clickPlay = !!_houseFromUrl(tab?.url || "")?.clickPlay;
+  } catch (_) {}
   while (Date.now() - start < timeoutMs) {
-    if (await _playButtonStillVisible(tabId)) {
+    if (clickPlay && (await _playButtonStillVisible(tabId))) {
       if (await _pageHasFullscreen(tabId)) {
         await _exitPageFullscreen(tabId);
         await _cdpDelay(400);
@@ -1068,7 +1075,7 @@ async function _pollGameFullscreen(tabId, timeoutMs) {
     const r = await _tryRequestFullscreenOnce(tabId);
     if (r?.ok) {
       await _cdpDelay(400);
-      if (await _playButtonStillVisible(tabId)) {
+      if (clickPlay && (await _playButtonStillVisible(tabId))) {
         await _exitPageFullscreen(tabId);
         continue;
       }
