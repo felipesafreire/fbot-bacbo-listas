@@ -1314,6 +1314,10 @@ chrome.storage.local.get("autoModeActive", (data) => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (!_automationRunning) return;
   if (changeInfo.status !== "complete") return;
+  if (_parimatchGameSlug(tab?.url || "")) {
+    _recoverParimatchUnavailable(tabId, tab.url).catch(() => {});
+    return;
+  }
   if (!_houseFromUrl(tab?.url || "")?.clickPlay) return;
   _tryClickPlayButton(tabId).catch(() => {});
 });
@@ -1796,6 +1800,178 @@ async function _waitForTabComplete(tabId, timeoutMs = 20000) {
   return false;
 }
 
+/* ========== Parimatch: entrar pelo lobby ==========
+   Na Parimatch, abrir o link do jogo direto (ou dar reload nele) cai em
+   "Jogo não disponível". Pelo lobby, clicando no card, o jogo carrega.
+   O card tem data-a com "item_id" igual ao fim do link do jogo
+   (evo-evolution-s10-bac-bo = Bac Bo, ...-bac-bo-ao-vivo = Bac Bo Brasileiro). */
+const PARIMATCH_LOBBY_PATH = "/pt/casino/live-casino/categories/br-top-lc";
+const PARIMATCH_UNAVAILABLE_RE = /jogo n[aã]o dispon[ií]vel|game (is )?(not available|unavailable)/i;
+const PARIMATCH_RECOVER_COOLDOWN_MS = 30000;
+const _parimatchRecoverAt = new Map();
+
+function _parimatchGameSlug(url) {
+  try {
+    const u = new URL(url);
+    if (!/parimatch/i.test(u.hostname)) return null;
+    const m = u.pathname.match(/\/game\/([^/?#]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function _parimatchLobbyUrl(gameUrl) {
+  try {
+    return new URL(gameUrl).origin + PARIMATCH_LOBBY_PATH;
+  } catch (_) {
+    return null;
+  }
+}
+
+/* Roda na página do lobby: acha o card do jogo, rola até ele e clica. */
+function _clickParimatchCardInPage(slug, doClick) {
+  const cards = document.querySelectorAll("[data-a]");
+  for (const el of cards) {
+    let id = "";
+    try {
+      id = JSON.parse(el.getAttribute("data-a") || "{}").item_id || "";
+    } catch (_) {
+      continue;
+    }
+    if (id !== slug) continue;
+    el.scrollIntoView({ block: "center", inline: "center" });
+    const r = el.getBoundingClientRect();
+    if (doClick) el.click();
+    return { found: true, x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+  return { found: false };
+}
+
+async function _tabUrlHasGame(tabId, slug) {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    return _parimatchGameSlug(tab?.url || "") === slug;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function _waitTabOnGame(tabId, slug, timeoutMs) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await _tabUrlHasGame(tabId, slug)) return true;
+    await _cdpDelay(300);
+  }
+  return false;
+}
+
+async function _waitEvoFrame(tabId, timeoutMs) {
+  const start = Date.now();
+  do {
+    try {
+      const frames = (await chrome.webNavigation.getAllFrames({ tabId })) || [];
+      if (frames.some((f) => EVO_FRAME_MATCH.test(f.url || ""))) return true;
+    } catch (_) {
+      return false;
+    }
+    if (Date.now() - start >= timeoutMs) break;
+    await _cdpDelay(500);
+  } while (true);
+  return false;
+}
+
+/* Aba já no lobby: clica no card do jogo. Tenta clique normal e, se a página
+   não sair do lobby, clique real via debugger. */
+async function _openParimatchGameFromLobby(tabId, gameUrl) {
+  const slug = _parimatchGameSlug(gameUrl);
+  if (!slug) return false;
+  const start = Date.now();
+  let hit = null;
+  while (Date.now() - start < 20000) {
+    try {
+      const res = await chrome.scripting.executeScript({
+        target: { tabId },
+        world: "MAIN",
+        func: _clickParimatchCardInPage,
+        args: [slug, true],
+      });
+      hit = res?.[0]?.result;
+    } catch (_) {
+      hit = null;
+    }
+    if (hit?.found) break;
+    await _cdpDelay(500);
+  }
+  if (!hit?.found) {
+    console.warn("[BacList][Parimatch] Card não encontrado no lobby:", slug);
+    return false;
+  }
+  if (!(await _waitTabOnGame(tabId, slug, 8000))) {
+    try {
+      const res = await chrome.scripting.executeScript({
+        target: { tabId },
+        world: "MAIN",
+        func: _clickParimatchCardInPage,
+        args: [slug, false],
+      });
+      const pos = res?.[0]?.result;
+      if (pos?.found) await _clickPlayWithDebugger(tabId, pos.x, pos.y);
+    } catch (_) {}
+    if (!(await _waitTabOnGame(tabId, slug, 8000))) {
+      console.warn("[BacList][Parimatch] Clique no card não abriu o jogo:", slug);
+      return false;
+    }
+  }
+  await _waitEvoFrame(tabId, 20000);
+  return true;
+}
+
+/* Abre o jogo da Parimatch pelo lobby; se não der, cai no link direto. */
+async function _openParimatchGame(tabId, gameUrl) {
+  const lobby = _parimatchLobbyUrl(gameUrl);
+  if (lobby) {
+    try {
+      await chrome.tabs.update(tabId, { url: lobby, active: true });
+      await _waitForTabComplete(tabId);
+      if (await _openParimatchGameFromLobby(tabId, gameUrl)) return true;
+    } catch (_) {}
+  }
+  try {
+    await chrome.tabs.update(tabId, { url: gameUrl, active: true });
+    await _waitForTabComplete(tabId);
+  } catch (_) {}
+  return false;
+}
+
+/* Reload manual na Parimatch com a automação ligada: se cair em
+   "Jogo não disponível", volta pelo lobby. */
+async function _pageShowsParimatchUnavailable(tabId) {
+  try {
+    const res = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "MAIN",
+      func: (re) => new RegExp(re, "i").test(document.body?.innerText || ""),
+      args: [PARIMATCH_UNAVAILABLE_RE.source],
+    });
+    return !!res?.[0]?.result;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function _recoverParimatchUnavailable(tabId, url) {
+  if (!_parimatchGameSlug(url)) return;
+  const last = _parimatchRecoverAt.get(tabId) || 0;
+  if (Date.now() - last < PARIMATCH_RECOVER_COOLDOWN_MS) return;
+  await _cdpDelay(2500);
+  if (await _waitEvoFrame(tabId, 0)) return;
+  if (!(await _pageShowsParimatchUnavailable(tabId))) return;
+  _parimatchRecoverAt.set(tabId, Date.now());
+  console.warn("[BacList][Parimatch] Jogo não disponível; reabrindo pelo lobby.");
+  await _reopenBacBoGame(tabId);
+}
+
 async function _reopenBacBoGame(preferredTabId = null) {
   let tabId = await _findEvoGameTabId();
 
@@ -1835,11 +2011,15 @@ async function _reopenBacBoGame(preferredTabId = null) {
     const game = house.gameId === "bacbo_en" ? "Bac Bo Inglês" : "Bac Bo Brasileiro";
     return { success: false, error: `${house.nome || "A casa"} não tem link do ${game}. Escolha outra casa.` };
   }
+  const viaLobby = !!_parimatchGameSlug(url);
   try {
     if (!tabId) {
-      const created = await chrome.tabs.create({ url, active: true });
+      const created = await chrome.tabs.create({
+        url: viaLobby ? "about:blank" : url,
+        active: true,
+      });
       tabId = created?.id || null;
-    } else {
+    } else if (!viaLobby) {
       await chrome.tabs.update(tabId, { url, active: true });
     }
   } catch (_) {
@@ -1853,7 +2033,12 @@ async function _reopenBacBoGame(preferredTabId = null) {
   _activeTabId = tabId;
   _lastHistoryHash = null;
   await chrome.storage.local.set({ bacboGameTabId: tabId });
-  await _waitForTabComplete(tabId);
+  if (viaLobby) {
+    _parimatchRecoverAt.set(tabId, Date.now());
+    await _openParimatchGame(tabId, url);
+  } else {
+    await _waitForTabComplete(tabId);
+  }
   if (house.clickPlay) {
     const play = await _tryClickPlayButton(tabId);
     if (play?.clicked) await _cdpDelay(2500);
