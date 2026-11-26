@@ -313,7 +313,10 @@ function maybeBetTieDuploSeco(road, galeInfo) {
   if (sig === _lastTieSecoSig || _tieSecoBusy) return;
   _lastTieSecoSig = sig;
   if (road[road.length - 1]?.cor !== "T") return;
-  if (_pendingBet?.awaiting || galeInfo?.galeScheduled) return;
+  // Só sem entrada em andamento: nem aposta pendente, nem gale agendado,
+  // nem sequência que acabou de ser resolvida nesta rodada.
+  if (_pendingBet || galeInfo?.hadPendingBet || galeInfo?.galeScheduled) return;
+  if (state.galeStep > 0) return;
 
   _tieSecoBusy = true;
   Promise.resolve(
@@ -1285,11 +1288,11 @@ function _processPendingBetResult(road, resultCor, info) {
     return info;
   }
 
-  // Entrada em cor sem proteção e saiu empate: red direto, sem gale.
+  // Entrada em cor sem proteção e saiu empate: conta red, mas segue o gale se ainda houver.
   const unprotectedTie =
     !isTieEntry && !_pendingBet.tieSeco && !hasTieProtection && resultCor === "T";
 
-  const shouldGale = galeStepAtBet < maxGale && !unprotectedTie;
+  const shouldGale = galeStepAtBet < maxGale;
 
   if (shouldGale) {
     state.galeStep = galeStepAtBet + 1;
