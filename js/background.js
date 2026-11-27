@@ -1049,18 +1049,14 @@ async function _exitPageFullscreen(tabId) {
   );
 }
 
-async function _pollGameFullscreen(tabId, timeoutMs) {
+/* Tela cheia: cada casa tem a sua rotina (_FULLSCREEN_BY_HOUSE). */
+
+/* 1Win: capa com "Jogar" na frente do jogo. Clica em Jogar e só então pede
+   tela inteira; se a capa voltar depois da tela cheia, sai e clica de novo. */
+async function _pollFullscreen1Win(tabId, timeoutMs) {
   const start = Date.now();
-  let lastReason = "";
-  // Só casas com "clicar em jogar" (1Win). Nas outras, o "Jogar" da página é de
-  // outro jogo (cards de jogos relacionados) e tiraria a aba do Bac Bo.
-  let clickPlay = false;
-  try {
-    const tab = await chrome.tabs.get(tabId);
-    clickPlay = !!_houseFromUrl(tab?.url || "")?.clickPlay;
-  } catch (_) {}
   while (Date.now() - start < timeoutMs) {
-    if (clickPlay && (await _playButtonStillVisible(tabId))) {
+    if (await _playButtonStillVisible(tabId)) {
       if (await _pageHasFullscreen(tabId)) {
         await _exitPageFullscreen(tabId);
         await _cdpDelay(400);
@@ -1075,20 +1071,56 @@ async function _pollGameFullscreen(tabId, timeoutMs) {
     const r = await _tryRequestFullscreenOnce(tabId);
     if (r?.ok) {
       await _cdpDelay(400);
-      if (clickPlay && (await _playButtonStillVisible(tabId))) {
+      if (await _playButtonStillVisible(tabId)) {
         await _exitPageFullscreen(tabId);
         continue;
       }
       if ((await _pageHasFullscreen(tabId)) || r.already) {
         return { ok: true, how: r.how };
       }
-    } else if (r?.reason && r.reason !== lastReason) {
-      lastReason = r.reason;
+    }
+    await _cdpDelay(700);
+  }
+  console.warn("[BacList][TelaInteira] 1Win: não entrou em tela inteira");
+  return { ok: false };
+}
+
+/* Pix na Banca, InovaBet, Parimatch e demais: o jogo abre direto. Nunca clica
+   em "Jogar" (na página são cards de outros jogos e tirariam a aba do Bac Bo). */
+async function _pollFullscreenDirect(tabId, timeoutMs) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await _pageHasFullscreen(tabId)) {
+      return { ok: true, already: true };
+    }
+    const r = await _tryRequestFullscreenOnce(tabId);
+    if (r?.ok) {
+      await _cdpDelay(400);
+      if ((await _pageHasFullscreen(tabId)) || r.already) {
+        return { ok: true, how: r.how };
+      }
     }
     await _cdpDelay(700);
   }
   console.warn("[BacList][TelaInteira] não entrou em tela inteira");
   return { ok: false };
+}
+
+const _FULLSCREEN_BY_HOUSE = {
+  "1win": _pollFullscreen1Win,
+  pixnabanca: _pollFullscreenDirect,
+  inovabet: _pollFullscreenDirect,
+  parimatch: _pollFullscreenDirect,
+};
+
+async function _pollGameFullscreen(tabId, timeoutMs) {
+  let kind = "outra";
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    kind = _houseKindFromUrl(tab?.url || "");
+  } catch (_) {}
+  const run = _FULLSCREEN_BY_HOUSE[kind] || _pollFullscreenDirect;
+  return run(tabId, timeoutMs);
 }
 
 async function _enterGameFullscreen(tabId, timeoutMs = 20000) {
@@ -1289,6 +1321,27 @@ function _houseFromUrl(url) {
   );
 }
 
+/* A 1Win troca de domínio (espelhos f1w-xxxx, 1win.io...), então a URL da aba
+   nem sempre bate com o cadastro. Reconhece também pelo caminho do jogo. */
+function _isOneWinGameUrl(url) {
+  const u = _normalizeGameUrl(url);
+  return /\/casino\/play\/v_evolution:/i.test(u) || /^https:\/\/([^/]*\.)?1win\./i.test(u);
+}
+
+/** Casa da aba: id da casa (1win, pixnabanca, inovabet, parimatch) ou "outra". */
+function _houseKindFromUrl(url) {
+  const house = _houseFromUrl(url);
+  if (house?.id === "1win" || house?.clickPlay || _isOneWinGameUrl(url)) return "1win";
+  if (house?.id) return house.id;
+  if (_parimatchGameSlug(url)) return "parimatch";
+  return "outra";
+}
+
+/** Só a 1Win tem a capa com "Jogar" antes do jogo. */
+function _houseNeedsPlayClick(url) {
+  return _houseKindFromUrl(url) === "1win";
+}
+
 async function _getBettingHouse() {
   try {
     const data = await chrome.storage.local.get(["bacboConfig", "bettingHouses"]);
@@ -1325,7 +1378,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     _recoverParimatchUnavailable(tabId, tab.url).catch(() => {});
     return;
   }
-  if (!_houseFromUrl(tab?.url || "")?.clickPlay) return;
+  if (!_houseNeedsPlayClick(tab?.url || "")) return;
   _tryClickPlayButton(tabId).catch(() => {});
 });
 
@@ -1336,7 +1389,7 @@ chrome.webNavigation.onCompleted.addListener((details) => {
     try {
       if (!(await _fullscreenOnLoadEnabled())) return;
       const tab = await chrome.tabs.get(details.tabId);
-      if (_houseFromUrl(tab?.url || "")?.clickPlay) {
+      if (_houseNeedsPlayClick(tab?.url || "")) {
         if (await _playButtonStillVisible(details.tabId)) {
           const play = await _tryClickPlayButton(details.tabId, 12000);
           if (play?.clicked) await _cdpDelay(2000);
