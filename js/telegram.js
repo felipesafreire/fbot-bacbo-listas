@@ -16,6 +16,7 @@ const BacListTelegram = (() => {
   const SOCKET_RETRY_MAX_MS = 30000;
   /** Na largada, espera o socket abrir antes de cair no long-poll. */
   const SOCKET_GRACE_MS = 3000;
+  const SOCKET_SILENCE_MS = 45000;
   const COMMAND_ACTIONS = new Set([
     "status",
     "ligar",
@@ -108,8 +109,26 @@ const BacListTelegram = (() => {
       return;
     }
     ws = socket;
+    // O painel manda ping a cada 20s: 45s em silêncio = conexão morta (troca de rede, sono).
+    let lastMessageAt = Date.now();
+    const watchdog = setInterval(() => {
+      if (ws !== socket) {
+        clearInterval(watchdog);
+        return;
+      }
+      if (Date.now() - lastMessageAt > SOCKET_SILENCE_MS) {
+        clearInterval(watchdog);
+        socket.onclose?.();
+        try {
+          socket.close();
+        } catch {
+          // já fechado
+        }
+      }
+    }, 5000);
     socket.onmessage = (ev) => {
       if (ws !== socket) return;
+      lastMessageAt = Date.now();
       let msg;
       try {
         msg = JSON.parse(ev.data);
